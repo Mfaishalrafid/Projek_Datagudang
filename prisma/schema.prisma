@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Category {
+  BAN
+  FILTER_OLI
+  REM_KAMPAS
+  TRANSMISI
+  MESIN
+  ELEKTRIKAL
+  OTHERS
+}
+
+enum VehicleCode {
+  CDE
+  CDD
+  BV
+  L300
+}
+
+enum VehicleType {
+  ENGKEL
+  DOUBLE
+  BLIND_VAN
+  L300
+}
+
+enum Condition {
+  LAYAK_JUAL
+  RUSAK
+}
+
+enum BuyerType {
+  PELANGGAN_UMUM
+  MITRA_BENGKEL
+  INTERNAL
+}
+
+enum SaleStatus {
+  APPROVAL
+  TERJUAL
+  BATAL
+}
+
+model Branch {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  code       String?
+  spareparts Sparepart[]
+}
+
+model Sparepart {
+  id              String      @id @default(cuid())
+  pjpp            String
+  branchId        String
+  branch          Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  removedDate     DateTime?   @db.Date
+  name            String
+  category        Category
+  plateNumber     String
+  vehicleCode     VehicleCode
+  vehicleType     VehicleType
+  condition       Condition
+  storageLocation String
+  notes           String?     @db.Text
+  saleOrders      SaleOrder[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([branchId])
+  @@index([category])
+  @@index([condition])
+  @@index([vehicleType])
+  @@index([removedDate])
+}
+
+model SaleOrder {
+  id          String     @id @default(cuid())
+  sparepartId String
+  sparepart   Sparepart  @relation(fields: [sparepartId], references: [id], onDelete: Cascade)
+  buyerName   String
+  buyerType   BuyerType
+  price       Decimal    @db.Decimal(14, 2)
+  saleDate    DateTime   @db.Date
+  status      SaleStatus @default(APPROVAL)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([sparepartId])
+  @@index([status])
+  @@index([saleDate])
+}
