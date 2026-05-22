@@ -48,11 +48,41 @@ enum SaleStatus {
   BATAL
 }
 
+enum UsedGoodsCondition {
+  LAYAK_JUAL
+  TIDAK_LAYAK
+}
+
+enum UsedGoodsCategory {
+  KARDUS_KARTON
+  PLASTIK
+  BESI_LOGAM
+  KERTAS_ARSIP
+  KAYU_PALET
+  ELEKTRONIK_BEKAS
+  TEKSTIL_KAIN
+  KACA
+  LAINNYA
+}
+
+enum UsedGoodsUnit {
+  PCS
+  KG
+  LEMBAR
+  IKAT
+  KARUNG
+  UNIT
+  SET
+  ROLL
+  DUS
+}
+
 model Branch {
   id         String      @id @default(cuid())
   name       String      @unique
   code       String?
   spareparts Sparepart[]
+  usedGoods  UsedGoods[]
 }
 
 model Sparepart {
@@ -95,4 +125,29 @@ model SaleOrder {
   @@index([sparepartId])
   @@index([status])
   @@index([saleDate])
+}
+
+model UsedGoods {
+  id                String             @id @default(cuid())
+  code              String             @unique
+  branchId          String
+  branch            Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  inputDate         DateTime           @db.Date
+  name              String
+  category          UsedGoodsCategory
+  qty               Decimal            @db.Decimal(14, 2)
+  unit              UsedGoodsUnit
+  estimatedWeightKg Decimal?           @db.Decimal(12, 2)
+  estimatedPrice    Decimal?           @db.Decimal(14, 2)
+  condition         UsedGoodsCondition
+  storageLocation   String?
+  pic               String?
+  notes             String?            @db.Text
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([branchId])
+  @@index([category])
+  @@index([condition])
+  @@index([inputDate])
 }

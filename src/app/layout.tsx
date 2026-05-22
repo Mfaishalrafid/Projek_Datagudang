@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "BARKAS+ - Pendataan Sparepart Ex-Service INDOPAKET 2026",
-  description: "Sistem pendataan sparepart ex-service INDOPAKET 2026"
+  title: "BARKAS+ - Ex-Service & Barang Bekas INDOPAKET 2026",
+  description: "Sistem pendataan sparepart ex-service dan barang bekas INDOPAKET 2026"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

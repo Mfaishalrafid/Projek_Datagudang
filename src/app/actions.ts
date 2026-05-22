@@ -1,22 +1,27 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { toBranchDTO, toSaleOrderDTO, toSparepartDTO } from "@/lib/mappers";
-import type { DashboardStats, InitialData } from "@/lib/types";
+import { toBranchDTO, toSaleOrderDTO, toSparepartDTO, toUsedGoodsDTO } from "@/lib/mappers";
+import type { DashboardStats, InitialData, UsedGoodsStats } from "@/lib/types";
 import {
   saleOrderInputSchema,
   saleStatusSchema,
   sparepartFiltersSchema,
   sparepartInputSchema,
   sparepartUpdateSchema,
+  usedGoodsFiltersSchema,
+  usedGoodsInputSchema,
   type SaleOrderInput,
   type SparepartFilters,
   type SparepartInput,
-  type SparepartUpdateInput
+  type SparepartUpdateInput,
+  type UsedGoodsFilters,
+  type UsedGoodsInput
 } from "@/lib/validations";
-import { vehicleTypeByCode } from "@/data/options";
+import { usedGoodsCategoryLabels, vehicleTypeByCode } from "@/data/options";
+import { buildUsedGoodsCsv } from "@/lib/csv";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, UsedGoodsCategory } from "@prisma/client";
 
 const sparepartInclude = {
   branch: true
@@ -29,6 +34,10 @@ const saleOrderInclude = {
     }
   }
 } satisfies Prisma.SaleOrderInclude;
+
+const usedGoodsInclude = {
+  branch: true
+} satisfies Prisma.UsedGoodsInclude;
 
 function toDate(value: string | null | undefined) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
@@ -48,6 +57,31 @@ function buildWhere(filters: SparepartFilters): Prisma.SparepartWhereInput {
       { pjpp: { contains: parsed.query, mode: "insensitive" } },
       { name: { contains: parsed.query, mode: "insensitive" } },
       { plateNumber: { contains: parsed.query, mode: "insensitive" } }
+    ];
+  }
+
+  return where;
+}
+
+function buildUsedGoodsWhere(filters: UsedGoodsFilters): Prisma.UsedGoodsWhereInput {
+  const parsed = usedGoodsFiltersSchema.parse(filters) || {};
+  const where: Prisma.UsedGoodsWhereInput = {};
+
+  if (parsed.condition) where.condition = parsed.condition;
+  if (parsed.category) where.category = parsed.category;
+  if (parsed.branchId) where.branchId = parsed.branchId;
+
+  if (parsed.query) {
+    const query = parsed.query.toLowerCase();
+    const matchingCategories = Object.entries(usedGoodsCategoryLabels)
+      .filter(([, label]) => label.toLowerCase().includes(query))
+      .map(([category]) => category as UsedGoodsCategory);
+
+    where.OR = [
+      { code: { contains: parsed.query, mode: "insensitive" } },
+      { name: { contains: parsed.query, mode: "insensitive" } },
+      { branch: { is: { name: { contains: parsed.query, mode: "insensitive" } } } },
+      ...(matchingCategories.length ? [{ category: { in: matchingCategories } }] : [])
     ];
   }
 
@@ -88,13 +122,55 @@ export async function listSaleOrders() {
   return orders.map(toSaleOrderDTO);
 }
 
+export async function listUsedGoods(filters?: UsedGoodsFilters) {
+  noStore();
+  const items = await prisma.usedGoods.findMany({
+    where: buildUsedGoodsWhere(filters),
+    include: usedGoodsInclude,
+    orderBy: [{ inputDate: "desc" }, { createdAt: "desc" }, { name: "asc" }]
+  });
+
+  return items.map(toUsedGoodsDTO);
+}
+
+export async function getUsedGoodsStats(): Promise<UsedGoodsStats> {
+  noStore();
+  const [total, saleable, notSaleable, items, branches] = await Promise.all([
+    prisma.usedGoods.count(),
+    prisma.usedGoods.count({ where: { condition: "LAYAK_JUAL" } }),
+    prisma.usedGoods.count({ where: { condition: "TIDAK_LAYAK" } }),
+    prisma.usedGoods.findMany({
+      select: {
+        qty: true,
+        estimatedWeightKg: true
+      }
+    }),
+    prisma.usedGoods.findMany({
+      distinct: ["branchId"],
+      select: { branchId: true }
+    })
+  ]);
+
+  return {
+    total,
+    totalQty: items.reduce((sum, item) => sum + Number(item.qty), 0),
+    saleable,
+    notSaleable,
+    totalWeightKg: items.reduce((sum, item) => sum + Number(item.estimatedWeightKg || 0), 0),
+    activeBranches: branches.length
+  };
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   noStore();
-  const [total, saleable, damaged, activeBranches, plates, pjpps] = await Promise.all([
+  const [total, saleable, damaged, activeBranches, plates, pjpps, usedGoods] = await Promise.all([
     prisma.sparepart.count(),
     prisma.sparepart.count({ where: { condition: "LAYAK_JUAL" } }),
     prisma.sparepart.count({ where: { condition: "RUSAK" } }),
-    prisma.branch.count(),
+    prisma.sparepart.findMany({
+      distinct: ["branchId"],
+      select: { branchId: true }
+    }),
     prisma.sparepart.findMany({
       distinct: ["plateNumber"],
       select: { plateNumber: true }
@@ -102,25 +178,28 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     prisma.sparepart.findMany({
       distinct: ["pjpp"],
       select: { pjpp: true }
-    })
+    }),
+    getUsedGoodsStats()
   ]);
 
   return {
     total,
     saleable,
     damaged,
-    activeBranches,
+    activeBranches: activeBranches.length,
     uniquePlates: plates.length,
-    uniquePjpp: pjpps.length
+    uniquePjpp: pjpps.length,
+    usedGoods
   };
 }
 
 export async function getReportData() {
   noStore();
-  const [branches, spareparts, saleOrders, stats] = await Promise.all([
+  const [branches, spareparts, saleOrders, usedGoods, stats] = await Promise.all([
     listBranches(),
     listSpareparts(),
     listSaleOrders(),
+    listUsedGoods(),
     getDashboardStats()
   ]);
 
@@ -128,8 +207,15 @@ export async function getReportData() {
     branches,
     spareparts,
     saleOrders,
+    usedGoods,
     stats
   } satisfies InitialData;
+}
+
+export async function getUsedGoodsReportData() {
+  noStore();
+  const [items, stats] = await Promise.all([listUsedGoods(), getUsedGoodsStats()]);
+  return { items, stats };
 }
 
 export async function createSparepart(data: SparepartInput) {
@@ -204,6 +290,70 @@ export async function deleteSparepart(id: string) {
 
   revalidatePath("/");
   return { id };
+}
+
+async function generateUsedGoodsCode(inputDate: string) {
+  const datePart = inputDate.replaceAll("-", "");
+  const prefix = `BB-${datePart}`;
+  const countForDate = await prisma.usedGoods.count({
+    where: {
+      code: {
+        startsWith: prefix
+      }
+    }
+  });
+
+  return `${prefix}-${String(countForDate + 1).padStart(4, "0")}`;
+}
+
+export async function createUsedGoods(data: UsedGoodsInput) {
+  const parsed = usedGoodsInputSchema.parse(data);
+  const branch = await prisma.branch.findUnique({
+    where: { id: parsed.branchId }
+  });
+
+  if (!branch) {
+    throw new Error("Cabang / lokasi asal tidak ditemukan.");
+  }
+
+  const inputDate = parsed.inputDate || new Date().toISOString().slice(0, 10);
+  const code = await generateUsedGoodsCode(inputDate);
+
+  const created = await prisma.usedGoods.create({
+    data: {
+      code,
+      branchId: parsed.branchId,
+      inputDate: toDate(inputDate) || new Date(),
+      name: parsed.name,
+      category: parsed.category,
+      qty: parsed.qty,
+      unit: parsed.unit,
+      estimatedWeightKg: parsed.estimatedWeightKg,
+      estimatedPrice: parsed.estimatedPrice,
+      condition: parsed.condition,
+      storageLocation: parsed.storageLocation || null,
+      pic: parsed.pic || null,
+      notes: parsed.notes || null
+    },
+    include: usedGoodsInclude
+  });
+
+  revalidatePath("/");
+  return toUsedGoodsDTO(created);
+}
+
+export async function deleteUsedGoods(id: string) {
+  await prisma.usedGoods.delete({
+    where: { id }
+  });
+
+  revalidatePath("/");
+  return { id };
+}
+
+export async function exportUsedGoodsCsv(filters?: UsedGoodsFilters) {
+  const items = await listUsedGoods(filters);
+  return buildUsedGoodsCsv(items);
 }
 
 export async function createSaleOrder(data: SaleOrderInput) {

@@ -1,4 +1,11 @@
-import { categoryByLabel, conditionByLabel, vehicleTypeByCode } from "./options";
+import {
+  categoryByLabel,
+  conditionByLabel,
+  usedGoodsCategoryByLabel,
+  usedGoodsConditionByLabel,
+  usedGoodsUnitByLabel,
+  vehicleTypeByCode
+} from "./options";
 import type { VehicleCode } from "@prisma/client";
 
 type RawSparepartSeed = {
@@ -11,6 +18,22 @@ type RawSparepartSeed = {
   vehicleCode: VehicleCode;
   conditionLabel: keyof typeof conditionByLabel;
   storageLocation: string;
+  notes: string;
+};
+
+type RawUsedGoodsSeed = {
+  code: string;
+  branchName: string;
+  inputDate: string;
+  name: string;
+  categoryLabel: keyof typeof usedGoodsCategoryByLabel;
+  conditionLabel: keyof typeof usedGoodsConditionByLabel;
+  storageLocation: string;
+  qty: number;
+  unitLabel: keyof typeof usedGoodsUnitByLabel;
+  estimatedWeightKg: number | null;
+  estimatedPrice: number | null;
+  pic: string;
   notes: string;
 };
 
@@ -242,6 +265,201 @@ export const sparepartSeeds: RawSparepartSeed[] = [
     conditionLabel: "RUSAK",
     storageLocation: "IGR CIKOKOL",
     notes: ""
+  },
+  {
+    pjpp: "494/PJPP/DMS/IV/2026",
+    branchName: "IGR CIKOKOL",
+    removedDate: "2026-05-13",
+    name: "Master Rem 5 pcs, Bantalan shock 2 pcs & klakson",
+    categoryLabel: "Rem & Kampas",
+    plateNumber: "B 9423 UCO",
+    vehicleCode: "CDE",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGR CIKOKOL",
+    notes: ""
+  },
+  {
+    pjpp: "399/PJPP/DMS/IV/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-03-04",
+    name: "Ganti aki 2 pc (TRED IN)",
+    categoryLabel: "Elektrikal",
+    plateNumber: "B 9517 UXC",
+    vehicleCode: "CDD",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "170/PJPP/DMS/BAN/IV/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-04-15",
+    name: "Ganti ban luar 2 pcs 750/16",
+    categoryLabel: "Ban",
+    plateNumber: "B 9517 UXC",
+    vehicleCode: "CDD",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "102/PJPP/DMS/BAN/III/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-04-10",
+    name: "Ganti ban luar 2 pcs 750/16",
+    categoryLabel: "Ban",
+    plateNumber: "H 9391 NA",
+    vehicleCode: "CDD",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "355/PJPP/DMS/III/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-04-07",
+    name: "Ganti wheel cylinder, draglink, king pin, item others",
+    categoryLabel: "Others",
+    plateNumber: "AB 8979 ZN",
+    vehicleCode: "CDD",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "162/PJPP/DMS/IIV/BAN/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-04",
+    name: "Ganti ban tubeless 165/13 1 pcs",
+    categoryLabel: "Ban",
+    plateNumber: "B 9935 UXD",
+    vehicleCode: "BV",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "169/PJPP/DMS/BAN/IV/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-04",
+    name: "Ganti ban 185/14 1 pcs",
+    categoryLabel: "Ban",
+    plateNumber: "B 9200 UXD",
+    vehicleCode: "L300",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "520/PJPP/DMS/IV/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-07",
+    name: "Ganti kip rem, kampas rem, seal roda depan, laker roda depan dalam",
+    categoryLabel: "Rem & Kampas",
+    plateNumber: "B 9416 UXD",
+    vehicleCode: "L300",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "535/PJPP/DMS/V/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-12",
+    name: "Wheel cylinder, Sanyco wheel cylinder, laker depan kanan & kiri",
+    categoryLabel: "Rem & Kampas",
+    plateNumber: "AB 8159 BU",
+    vehicleCode: "CDD",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "201/PJPP/DMS/BAN/V/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-18",
+    name: "Ganti ban tubeless 165/13 1 pcs",
+    categoryLabel: "Ban",
+    plateNumber: "B 9758 UXD",
+    vehicleCode: "BV",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  },
+  {
+    pjpp: "566/PJPP/DMS/V/2026",
+    branchName: "IGRSMG",
+    removedDate: "2026-05-19",
+    name: "Ganti aki",
+    categoryLabel: "Elektrikal",
+    plateNumber: "B 9416 UXD",
+    vehicleCode: "L300",
+    conditionLabel: "RUSAK",
+    storageLocation: "IGRSMG",
+    notes: ""
+  }
+];
+
+export const usedGoodsSeeds: RawUsedGoodsSeed[] = [
+  {
+    code: "BB-20260521-0001",
+    inputDate: "2026-05-21",
+    branchName: "Sirclo",
+    name: "Kardus Bekas",
+    categoryLabel: "Kardus & Karton",
+    conditionLabel: "LAYAK JUAL",
+    storageLocation: "GW Sirclo",
+    qty: 270,
+    unitLabel: "pcs",
+    estimatedWeightKg: null,
+    estimatedPrice: 0,
+    pic: "Vincent",
+    notes: ""
+  },
+  {
+    code: "BB-20260519-0002",
+    inputDate: "2026-05-19",
+    branchName: "GW Cargo TGR",
+    name: "Palet",
+    categoryLabel: "Kayu & Palet",
+    conditionLabel: "LAYAK JUAL",
+    storageLocation: "GW Cargo TGR",
+    qty: 300,
+    unitLabel: "pcs",
+    estimatedWeightKg: null,
+    estimatedPrice: 0,
+    pic: "Breli",
+    notes: ""
+  },
+  {
+    code: "BB-20260405-0003",
+    inputDate: "2026-04-05",
+    branchName: "GW Ecomm",
+    name: "Kertas",
+    categoryLabel: "Kertas & Arsip",
+    conditionLabel: "LAYAK JUAL",
+    storageLocation: "GW Ecomm JKT",
+    qty: 25,
+    unitLabel: "kg",
+    estimatedWeightKg: 25,
+    estimatedPrice: 0,
+    pic: "Danu",
+    notes: ""
+  },
+  {
+    code: "BB-20260502-0004",
+    inputDate: "2026-05-02",
+    branchName: "HUB JKT 1",
+    name: "Paku bekas",
+    categoryLabel: "Besi & Logam",
+    conditionLabel: "LAYAK JUAL",
+    storageLocation: "HUB JKT 1",
+    qty: 5,
+    unitLabel: "kg",
+    estimatedWeightKg: 5,
+    estimatedPrice: 0,
+    pic: "Hafiz",
+    notes: ""
   }
 ];
 
@@ -257,6 +475,24 @@ export function normalizeSeedRecord(item: RawSparepartSeed) {
     vehicleType: vehicleTypeByCode[item.vehicleCode],
     condition: conditionByLabel[item.conditionLabel],
     storageLocation: item.storageLocation,
+    notes: item.notes || null
+  };
+}
+
+export function normalizeUsedGoodsSeedRecord(item: RawUsedGoodsSeed) {
+  return {
+    code: item.code,
+    branchName: item.branchName,
+    inputDate: item.inputDate,
+    name: item.name,
+    category: usedGoodsCategoryByLabel[item.categoryLabel],
+    qty: item.qty,
+    unit: usedGoodsUnitByLabel[item.unitLabel],
+    estimatedWeightKg: item.estimatedWeightKg,
+    estimatedPrice: item.estimatedPrice,
+    condition: usedGoodsConditionByLabel[item.conditionLabel],
+    storageLocation: item.storageLocation || null,
+    pic: item.pic || null,
     notes: item.notes || null
   };
 }

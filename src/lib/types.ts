@@ -3,6 +3,9 @@ import type {
   Category,
   Condition,
   SaleStatus,
+  UsedGoodsCategory,
+  UsedGoodsCondition,
+  UsedGoodsUnit,
   VehicleCode,
   VehicleType
 } from "@prisma/client";
@@ -52,6 +55,39 @@ export type SaleOrderDTO = {
   updatedAt: string;
 };
 
+export type UsedGoodsDTO = {
+  id: string;
+  code: string;
+  branchId: string;
+  branchName: string;
+  branchCode: string | null;
+  inputDate: string;
+  name: string;
+  category: UsedGoodsCategory;
+  categoryLabel: string;
+  qty: number;
+  unit: UsedGoodsUnit;
+  unitLabel: string;
+  estimatedWeightKg: number | null;
+  estimatedPrice: number | null;
+  condition: UsedGoodsCondition;
+  conditionLabel: string;
+  storageLocation: string | null;
+  pic: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UsedGoodsStats = {
+  total: number;
+  totalQty: number;
+  saleable: number;
+  notSaleable: number;
+  totalWeightKg: number;
+  activeBranches: number;
+};
+
 export type DashboardStats = {
   total: number;
   saleable: number;
@@ -59,11 +95,13 @@ export type DashboardStats = {
   activeBranches: number;
   uniquePlates: number;
   uniquePjpp: number;
+  usedGoods: UsedGoodsStats;
 };
 
 export type InitialData = {
   branches: BranchDTO[];
   spareparts: SparepartDTO[];
   saleOrders: SaleOrderDTO[];
+  usedGoods: UsedGoodsDTO[];
   stats: DashboardStats;
 };

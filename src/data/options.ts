@@ -3,6 +3,9 @@ import type {
   Category,
   Condition,
   SaleStatus,
+  UsedGoodsCategory,
+  UsedGoodsCondition,
+  UsedGoodsUnit,
   VehicleCode,
   VehicleType
 } from "@prisma/client";
@@ -10,7 +13,12 @@ import type {
 export const branchSeeds = [
   { name: "SPI RANGKASBITUNG", code: "SPI-RKS" },
   { name: "IGR CIPUTAT", code: "IGR-CPT" },
-  { name: "IGR CIKOKOL", code: "IGR-CKL" }
+  { name: "IGR CIKOKOL", code: "IGR-CKL" },
+  { name: "IGRSMG", code: "IGR-SMG" },
+  { name: "Sirclo", code: "SIRCLO" },
+  { name: "GW Cargo TGR", code: "GW-TGR" },
+  { name: "GW Ecomm", code: "GW-ECOMM" },
+  { name: "HUB JKT 1", code: "HUB-JKT1" }
 ] as const;
 
 export const categoryLabels: Record<Category, string> = {
@@ -69,6 +77,64 @@ export const saleStatusLabels: Record<SaleStatus, string> = {
   BATAL: "Batal"
 };
 
+export const usedGoodsConditionLabels: Record<UsedGoodsCondition, string> = {
+  LAYAK_JUAL: "LAYAK JUAL",
+  TIDAK_LAYAK: "TIDAK LAYAK"
+};
+
+export const usedGoodsConditionByLabel: Record<string, UsedGoodsCondition> = {
+  "LAYAK JUAL": "LAYAK_JUAL",
+  "TIDAK LAYAK": "TIDAK_LAYAK"
+};
+
+export const usedGoodsCategoryLabels: Record<UsedGoodsCategory, string> = {
+  KARDUS_KARTON: "Kardus & Karton",
+  PLASTIK: "Plastik",
+  BESI_LOGAM: "Besi & Logam",
+  KERTAS_ARSIP: "Kertas & Arsip",
+  KAYU_PALET: "Kayu & Palet",
+  ELEKTRONIK_BEKAS: "Elektronik Bekas",
+  TEKSTIL_KAIN: "Tekstil & Kain",
+  KACA: "Kaca",
+  LAINNYA: "Lainnya"
+};
+
+export const usedGoodsCategoryByLabel: Record<string, UsedGoodsCategory> = {
+  "Kardus & Karton": "KARDUS_KARTON",
+  Plastik: "PLASTIK",
+  "Besi & Logam": "BESI_LOGAM",
+  "Kertas & Arsip": "KERTAS_ARSIP",
+  "Kayu & Palet": "KAYU_PALET",
+  "Elektronik Bekas": "ELEKTRONIK_BEKAS",
+  "Tekstil & Kain": "TEKSTIL_KAIN",
+  Kaca: "KACA",
+  Lainnya: "LAINNYA"
+};
+
+export const usedGoodsUnitLabels: Record<UsedGoodsUnit, string> = {
+  PCS: "pcs",
+  KG: "kg",
+  LEMBAR: "lembar",
+  IKAT: "ikat",
+  KARUNG: "karung",
+  UNIT: "unit",
+  SET: "set",
+  ROLL: "roll",
+  DUS: "dus"
+};
+
+export const usedGoodsUnitByLabel: Record<string, UsedGoodsUnit> = {
+  pcs: "PCS",
+  kg: "KG",
+  lembar: "LEMBAR",
+  ikat: "IKAT",
+  karung: "KARUNG",
+  unit: "UNIT",
+  set: "SET",
+  roll: "ROLL",
+  dus: "DUS"
+};
+
 export const categoryOptions = Object.entries(categoryLabels).map(([value, label]) => ({
   value: value as Category,
   label
@@ -87,5 +153,20 @@ export const vehicleTypeOptions = Object.entries(vehicleTypeLabels).map(([value,
 
 export const buyerTypeOptions = Object.entries(buyerTypeLabels).map(([value, label]) => ({
   value: value as BuyerType,
+  label
+}));
+
+export const usedGoodsConditionOptions = Object.entries(usedGoodsConditionLabels).map(([value, label]) => ({
+  value: value as UsedGoodsCondition,
+  label
+}));
+
+export const usedGoodsCategoryOptions = Object.entries(usedGoodsCategoryLabels).map(([value, label]) => ({
+  value: value as UsedGoodsCategory,
+  label
+}));
+
+export const usedGoodsUnitOptions = Object.entries(usedGoodsUnitLabels).map(([value, label]) => ({
+  value: value as UsedGoodsUnit,
   label
 }));

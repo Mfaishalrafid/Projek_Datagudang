@@ -3,10 +3,13 @@ import {
   categoryLabels,
   conditionLabels,
   saleStatusLabels,
+  usedGoodsCategoryLabels,
+  usedGoodsConditionLabels,
+  usedGoodsUnitLabels,
   vehicleTypeLabels
 } from "@/data/options";
-import type { BranchDTO, SaleOrderDTO, SparepartDTO } from "@/lib/types";
-import type { Branch, SaleOrder, Sparepart } from "@prisma/client";
+import type { BranchDTO, SaleOrderDTO, SparepartDTO, UsedGoodsDTO } from "@/lib/types";
+import type { Branch, SaleOrder, Sparepart, UsedGoods } from "@prisma/client";
 
 type SparepartWithBranch = Sparepart & {
   branch: Branch;
@@ -16,6 +19,10 @@ type SaleOrderWithSparepart = SaleOrder & {
   sparepart: Sparepart & {
     branch: Branch;
   };
+};
+
+type UsedGoodsWithBranch = UsedGoods & {
+  branch: Branch;
 };
 
 export function toBranchDTO(branch: Branch): BranchDTO {
@@ -66,5 +73,31 @@ export function toSaleOrderDTO(order: SaleOrderWithSparepart): SaleOrderDTO {
     statusLabel: saleStatusLabels[order.status],
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString()
+  };
+}
+
+export function toUsedGoodsDTO(item: UsedGoodsWithBranch): UsedGoodsDTO {
+  return {
+    id: item.id,
+    code: item.code,
+    branchId: item.branchId,
+    branchName: item.branch.name,
+    branchCode: item.branch.code,
+    inputDate: item.inputDate.toISOString(),
+    name: item.name,
+    category: item.category,
+    categoryLabel: usedGoodsCategoryLabels[item.category],
+    qty: Number(item.qty),
+    unit: item.unit,
+    unitLabel: usedGoodsUnitLabels[item.unit],
+    estimatedWeightKg: item.estimatedWeightKg === null ? null : Number(item.estimatedWeightKg),
+    estimatedPrice: item.estimatedPrice === null ? null : Number(item.estimatedPrice),
+    condition: item.condition,
+    conditionLabel: usedGoodsConditionLabels[item.condition],
+    storageLocation: item.storageLocation,
+    pic: item.pic,
+    notes: item.notes,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString()
   };
 }

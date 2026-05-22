@@ -5,6 +5,7 @@ import {
   Download,
   FileBarChart,
   Home,
+  Archive,
   Package,
   Plus,
   Printer,
@@ -18,6 +19,7 @@ export type PageKey =
   | "pendataan"
   | "inventori"
   | "penjualan"
+  | "barangbekas"
   | "cabang"
   | "laporan";
 
@@ -54,12 +56,12 @@ export function Sidebar({
         <div className="sb-mark">B+</div>
         <div>
           <div className="sb-name">BARKAS+</div>
-          <div className="sb-version">Ex-Service Management v1.0</div>
+          <div className="sb-version">Ex-Service & Material v3</div>
         </div>
       </div>
       <div className="sb-org">
         <div className="sb-org-name">INDOPAKET</div>
-        <div className="sb-org-sub">Pendataan Sparepart 2026</div>
+        <div className="sb-org-sub">Sparepart & Barang Bekas 2026</div>
       </div>
       <nav className="sb-nav">
         <div className="sb-section">Menu Utama</div>
@@ -73,12 +75,20 @@ export function Sidebar({
             onClick={() => onNavigate(item.key)}
           />
         ))}
+        <div className="sb-section">Barang Bekas</div>
+        <SidebarItem
+          active={activePage === "barangbekas"}
+          label="Pendataan Barang Bekas"
+          icon={Archive}
+          badge={stats.usedGoods.total}
+          onClick={() => onNavigate("barangbekas")}
+        />
         <div className="sb-section">Referensi</div>
         {referenceItems.map((item) => (
           <SidebarItem key={item.key} active={activePage === item.key} label={item.label} icon={item.icon} onClick={() => onNavigate(item.key)} />
         ))}
         <div className="sb-section">Tools</div>
-        <SidebarTool label="Input Sparepart Baru" icon={Plus} onClick={onAdd} />
+        <SidebarTool label="Input Barang Baru" icon={Plus} onClick={onAdd} />
         <SidebarTool label="Export CSV" icon={Download} onClick={onExport} />
         <SidebarTool label="Cetak Laporan" icon={Printer} onClick={onPrint} />
       </nav>
@@ -97,7 +107,7 @@ export function Sidebar({
             <span>Rusak</span>
           </div>
         </div>
-        <div className="sb-footnote">Data diimpor dari Excel - 19 record</div>
+        <div className="sb-footnote">Data diimpor dari Excel - 30 sparepart + barang bekas</div>
       </div>
     </aside>
   );

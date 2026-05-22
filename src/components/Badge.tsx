@@ -9,6 +9,7 @@ type BadgeTone =
   | "branch-ciputat"
   | "branch-cikokol"
   | "vehicle"
+  | "amber"
   | "approval"
   | "sold"
   | "cancelled";
@@ -21,6 +22,7 @@ const toneClass: Record<BadgeTone, string> = {
   "branch-ciputat": "badge-branch-ciputat",
   "branch-cikokol": "badge-branch-cikokol",
   vehicle: "badge-vehicle",
+  amber: "badge-amber",
   approval: "badge-approval",
   sold: "badge-sold",
   cancelled: "badge-damaged"

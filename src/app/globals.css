@@ -726,6 +726,11 @@ tbody tr:last-child td {
   color: #78350f;
 }
 
+.badge-amber {
+  background: var(--amber3);
+  color: #78350f;
+}
+
 .badge-approval {
   background: var(--amber3);
   color: #78350f;
@@ -780,6 +785,34 @@ tbody tr:last-child td {
   background: var(--surface2);
   color: var(--text3);
   font-size: 11px;
+}
+
+.tabs {
+  width: fit-content;
+  display: flex;
+  gap: 2px;
+  margin-bottom: 13px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface2);
+}
+
+.tab-btn {
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text3);
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.tab-btn.active {
+  background: var(--surface);
+  color: var(--navy);
+  box-shadow: 0 1px 4px rgba(11, 37, 69, 0.08);
 }
 
 .progress-row {
@@ -907,6 +940,15 @@ tbody tr:last-child td {
   background: #b71c1c;
 }
 
+.btn-amber {
+  background: var(--amber);
+  color: #fff;
+}
+
+.btn-amber:hover {
+  background: #a96706;
+}
+
 .btn-sm {
   height: 28px;
   padding: 0 11px;
@@ -1009,6 +1051,56 @@ textarea.form-control {
 .form-error {
   color: var(--red);
   font-size: 11px;
+}
+
+.type-chooser {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.type-card {
+  min-height: 150px;
+  text-align: left;
+  padding: 15px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius3);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.type-card:hover,
+.type-card.active {
+  border-color: var(--blue2);
+  box-shadow: var(--shadow2);
+  transform: translateY(-1px);
+}
+
+.type-card-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: var(--blue3);
+  color: var(--blue);
+}
+
+.type-card-title {
+  display: block;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.type-card-desc {
+  display: block;
+  margin-top: 5px;
+  color: var(--text3);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .modal-overlay {

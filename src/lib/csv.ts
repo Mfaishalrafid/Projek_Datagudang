@@ -1,4 +1,4 @@
-import type { SparepartDTO } from "@/lib/types";
+import type { SparepartDTO, UsedGoodsDTO } from "@/lib/types";
 
 const headers = [
   "No",
@@ -12,6 +12,23 @@ const headers = [
   "Jenis Mobil Lengkap",
   "Kondisi Sparepart",
   "Lokasi Penyimpanan",
+  "Keterangan"
+];
+
+const usedGoodsHeaders = [
+  "No",
+  "Kode Barang",
+  "Cabang",
+  "Tanggal Input",
+  "Nama Barang",
+  "Kategori",
+  "Qty",
+  "Satuan",
+  "Estimasi Berat Kg",
+  "Estimasi Harga Jual",
+  "Kondisi",
+  "Lokasi Penyimpanan",
+  "PIC",
   "Keterangan"
 ];
 
@@ -37,6 +54,27 @@ export function buildSparepartCsv(spareparts: SparepartDTO[]) {
   ]);
 
   return [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
+export function buildUsedGoodsCsv(items: UsedGoodsDTO[]) {
+  const rows = items.map((item, index) => [
+    index + 1,
+    item.code,
+    item.branchName,
+    item.inputDate.slice(0, 10),
+    item.name,
+    item.categoryLabel,
+    item.qty,
+    item.unitLabel,
+    item.estimatedWeightKg ?? "",
+    item.estimatedPrice ?? "",
+    item.conditionLabel,
+    item.storageLocation || "",
+    item.pic || "",
+    item.notes || ""
+  ]);
+
+  return [usedGoodsHeaders, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
 }
 
 export function downloadCsv(csv: string, filename: string) {
