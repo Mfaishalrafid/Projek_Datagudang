@@ -1,6 +1,7 @@
 "use client";
 
 import { LogIn } from "lucide-react";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export function LoginForm({
   action,
@@ -33,7 +34,7 @@ export function LoginForm({
           </label>
           <label>
             Password
-            <input className="form-control" name="password" type="password" placeholder="Password" required />
+            <PasswordInput name="password" placeholder="Password" required />
           </label>
           {error ? <div className="form-error">{error}</div> : null}
           <button className="btn btn-primary" type="submit">

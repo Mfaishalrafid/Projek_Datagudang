@@ -61,6 +61,45 @@ function renderBranchApp() {
   );
 }
 
+function renderEmployeeBranchApp() {
+  const employeeUser = {
+    ...branchUser,
+    id: "user-karyawan-cabang",
+    name: "Karyawan Cabang",
+    email: "karyawan.cabang@barkas.local",
+    role: "KARYAWAN_CABANG" as const
+  };
+
+  return render(
+    <BarkasApp
+      initialData={makeInitialData({
+        currentUser: employeeUser,
+        branches: makeInitialData().branches.filter((branch) => branch.id === employeeUser.branchId),
+        spareparts: [],
+        usedGoods: makeInitialData().usedGoods.filter((item) => item.branchId === employeeUser.branchId),
+        saleOrders: [],
+        users: [],
+        stats: {
+          total: 0,
+          saleable: 0,
+          damaged: 0,
+          activeBranches: 0,
+          uniquePlates: 0,
+          uniquePjpp: 0,
+          usedGoods: {
+            total: 2,
+            totalQty: 272,
+            saleable: 1,
+            notSaleable: 1,
+            totalWeightKg: 1,
+            activeBranches: 1
+          }
+        }
+      })}
+    />
+  );
+}
+
 function content() {
   const element = document.querySelector(".content");
   if (!element) throw new Error("Content element not found");
@@ -71,6 +110,10 @@ function activeModal() {
   const element = document.querySelector(".modal-overlay.open");
   if (!element) throw new Error("Active modal not found");
   return within(element as HTMLElement);
+}
+
+function sidebarSections() {
+  return [...document.querySelectorAll(".sidebar .sb-section")].map((element) => element.textContent);
 }
 
 async function openUsedGoodsPage(user: ReturnType<typeof userEvent.setup>) {
@@ -89,6 +132,7 @@ describe("BarkasApp v3 UI", () => {
     renderApp();
 
     expect(screen.getByText("Total Sparepart")).toBeInTheDocument();
+    expect(content().queryByText("Rekap Barang Bekas")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Barang Bekas" }));
 
     expect(screen.getByText("Total Barang Bekas")).toBeInTheDocument();
@@ -269,6 +313,100 @@ describe("BarkasApp v3 UI", () => {
     expect(screen.getByRole("button", { name: /Manajemen User/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Input Barang$/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Input Barang Baru/ })).not.toBeInTheDocument();
+  });
+
+  it("removes phone and address from add branch form", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /Manajemen Cabang/ }));
+    await user.click(content().getByRole("button", { name: /Tambah Cabang/ }));
+
+    const modal = activeModal();
+    expect(modal.getByText("Kode Cabang")).toBeInTheDocument();
+    expect(modal.getByText("Nama Cabang")).toBeInTheDocument();
+    expect(modal.getByText("Regional")).toBeInTheDocument();
+    expect(modal.getByText("Kota")).toBeInTheDocument();
+    expect(modal.getByText("Status")).toBeInTheDocument();
+    expect(modal.queryByText("Telepon")).not.toBeInTheDocument();
+    expect(modal.queryByText("Alamat")).not.toBeInTheDocument();
+  });
+
+  it("removes phone and address from edit branch form", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /Manajemen Cabang/ }));
+    await user.click(content().getAllByRole("button", { name: "Edit" })[0]);
+
+    const modal = activeModal();
+    expect(modal.getByText("Edit Cabang")).toBeInTheDocument();
+    expect(modal.getByText("Kode Cabang")).toBeInTheDocument();
+    expect(modal.getByText("Nama Cabang")).toBeInTheDocument();
+    expect(modal.getByText("Regional")).toBeInTheDocument();
+    expect(modal.getByText("Kota")).toBeInTheDocument();
+    expect(modal.getByText("Status")).toBeInTheDocument();
+    expect(modal.queryByText("Telepon")).not.toBeInTheDocument();
+    expect(modal.queryByText("Alamat")).not.toBeInTheDocument();
+  });
+
+  it("places Pendataan Barang Bekas in main sidebar for ADMIN_CABANG", () => {
+    renderBranchApp();
+
+    expect(sidebarSections()).toContain("Menu Utama");
+    expect(sidebarSections()).not.toContain("Barang Bekas");
+    expect(screen.getByRole("button", { name: /Pendataan Barang Bekas/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Input Barang Baru/ })).not.toBeInTheDocument();
+  });
+
+  it("places Pendataan Barang Bekas in main sidebar for KARYAWAN_CABANG", () => {
+    renderEmployeeBranchApp();
+
+    expect(sidebarSections()).toContain("Menu Utama");
+    expect(sidebarSections()).not.toContain("Barang Bekas");
+    expect(screen.getByRole("button", { name: /Pendataan Barang Bekas/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Input Barang Baru/ })).not.toBeInTheDocument();
+  });
+
+  it("shows separate sparepart and used goods report tabs", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /^Laporan$/ }));
+    let page = content();
+
+    expect(page.getByRole("button", { name: "Sparepart" })).toBeInTheDocument();
+    expect(page.getByRole("button", { name: "Barang Bekas" })).toBeInTheDocument();
+    expect(page.getByText("Total Sparepart")).toBeInTheDocument();
+    expect(page.getByText("Tabel Lengkap - Semua 2 Data Sparepart")).toBeInTheDocument();
+
+    await user.click(page.getByRole("button", { name: "Barang Bekas" }));
+    page = content();
+    expect(page.getByText("Total Barang Bekas")).toBeInTheDocument();
+    expect(page.getByText("Rekap Barang Bekas per Kategori")).toBeInTheDocument();
+    expect(page.getByText("Rekap Barang Bekas per Cabang")).toBeInTheDocument();
+    expect(page.getByText("Tabel Lengkap - Semua 3 Data Barang Bekas")).toBeInTheDocument();
+    expect(page.getByText("Kardus Bekas")).toBeInTheDocument();
+  });
+
+  it("toggles add user password visibility without submitting the form", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /Manajemen User/ }));
+    await user.click(content().getByRole("button", { name: /Tambah User/ }));
+
+    const modal = activeModal();
+    const password = modal.getByPlaceholderText("Minimal 6 karakter");
+    expect(password).toHaveAttribute("type", "password");
+
+    await user.click(modal.getByRole("button", { name: "Tampilkan password" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(actionMocks.createUser).not.toHaveBeenCalled();
+
+    await user.click(modal.getByRole("button", { name: "Sembunyikan password" }));
+    expect(password).toHaveAttribute("type", "password");
+    expect(actionMocks.createUser).not.toHaveBeenCalled();
   });
 
   it("shows Layak Jual tabs for sparepart and used goods", async () => {

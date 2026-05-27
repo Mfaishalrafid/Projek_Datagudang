@@ -575,6 +575,22 @@ button {
   padding: 13px 16px;
 }
 
+.progress-card-body {
+  min-height: 156px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px 20px 20px;
+}
+
+.progress-card-body .progress-row {
+  margin-bottom: 0;
+}
+
+.progress-card-body .compact-panel {
+  margin-top: 4px;
+}
+
 .compact-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -841,7 +857,7 @@ tbody tr:last-child td {
 }
 
 .progress-row {
-  margin-bottom: 11px;
+  margin-bottom: 12px;
 }
 
 .progress-row:last-child {
@@ -850,9 +866,10 @@ tbody tr:last-child td {
 
 .progress-row-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .progress-row-head span,
@@ -860,8 +877,14 @@ tbody tr:last-child td {
   font-size: 12px;
 }
 
+.progress-row-head span {
+  min-width: 0;
+  color: var(--text2);
+  font-weight: 700;
+}
+
 .progress {
-  height: 6px;
+  height: 7px;
   overflow: hidden;
   border-radius: 4px;
   background: var(--border);
@@ -1071,6 +1094,42 @@ textarea.form-control {
 .form-control[readonly] {
   background: var(--surface2);
   color: var(--text3);
+}
+
+.password-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-control {
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: var(--surface2);
+  color: var(--blue);
+}
+
+.password-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(59, 142, 234, 0.14);
 }
 
 .form-error {

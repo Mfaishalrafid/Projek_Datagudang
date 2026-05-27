@@ -23,6 +23,7 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { Drawer } from "@/components/Drawer";
 import { FilterBar, type FilterState } from "@/components/FilterBar";
 import { Modal } from "@/components/Modal";
+import { PasswordInput } from "@/components/PasswordInput";
 import { ProgressBar, ProgressRow } from "@/components/ProgressBar";
 import { Sidebar, type PageKey } from "@/components/Sidebar";
 import { StatCard } from "@/components/StatCard";
@@ -898,8 +899,8 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
       ...branchForm,
       regional: branchForm.regional || undefined,
       city: branchForm.city || undefined,
-      address: branchForm.address || undefined,
-      phone: branchForm.phone || undefined
+      address: undefined,
+      phone: undefined
     };
     const validation = editingBranch
       ? branchUpdateSchema.safeParse({ ...payload, id: editingBranch.id })
@@ -1075,7 +1076,20 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
         <ForbiddenPage title="Manajemen User" message="Role Anda tidak dapat mengelola user." />
       );
     }
-    if (activePage === "laporan") return <LaporanPage data={sortedSpareparts} stats={stats} onOpen={setSelectedPart} onExport={handleExport} canExport={canExport} />;
+    if (activePage === "laporan") {
+      return (
+        <LaporanPage
+          data={sortedSpareparts}
+          usedGoods={sortedUsedGoods}
+          stats={stats}
+          onOpen={setSelectedPart}
+          onOpenUsedGoods={setSelectedUsedGoods}
+          onExport={handleExport}
+          onUsedGoodsExport={handleUsedGoodsExport}
+          canExport={canExport}
+        />
+      );
+    }
     if (isBranchRole(currentUser.role)) {
       return (
         <BranchDashboardPage
@@ -1110,7 +1124,6 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
         stats={stats}
         currentUser={currentUser}
         onNavigate={setActivePage}
-        onAdd={openInputChooser}
         onExport={handleExportAll}
         onPrint={() => window.print()}
       />
@@ -1351,10 +1364,12 @@ function BranchDashboardPage({
           />
         </Card>
         <Card title="Kondisi Cabang">
-          <ProgressRow label="Sparepart LAYAK JUAL" value={stats.saleable} max={Math.max(stats.total, 1)} color="var(--teal)" />
-          <ProgressRow label="Sparepart RUSAK" value={stats.damaged} max={Math.max(stats.total, 1)} color="var(--red2)" />
-          <ProgressRow label="Barang Bekas LAYAK JUAL" value={stats.usedGoods.saleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--teal)" />
-          <ProgressRow label="Barang Bekas TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--red2)" />
+          <div className="card-body progress-card-body">
+            <ProgressRow label="Sparepart LAYAK JUAL" value={stats.saleable} max={Math.max(stats.total, 1)} color="var(--teal)" />
+            <ProgressRow label="Sparepart RUSAK" value={stats.damaged} max={Math.max(stats.total, 1)} color="var(--red2)" />
+            <ProgressRow label="Barang Bekas LAYAK JUAL" value={stats.usedGoods.saleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--teal)" />
+            <ProgressRow label="Barang Bekas TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--red2)" />
+          </div>
         </Card>
       </div>
     </div>
@@ -1404,11 +1419,13 @@ function DashboardPage({
               <DataTable columns={dashboardColumns()} data={data} getRowKey={(row) => row.id} onRowClick={onOpen} />
             </Card>
             <Card title="Kondisi Sparepart" subtitle="Distribusi layak jual vs rusak">
-              <ProgressRow label="LAYAK JUAL" value={stats.saleable} max={stats.total} color="var(--teal)" />
-              <ProgressRow label="RUSAK" value={stats.damaged} max={stats.total} color="var(--red2)" />
-              <div className="compact-panel center">
-                <div className="compact-subtitle">Total Unit</div>
-                <div className="compact-value">{stats.total}</div>
+              <div className="card-body progress-card-body">
+                <ProgressRow label="LAYAK JUAL" value={stats.saleable} max={stats.total} color="var(--teal)" />
+                <ProgressRow label="RUSAK" value={stats.damaged} max={stats.total} color="var(--red2)" />
+                <div className="compact-panel center">
+                  <div className="compact-subtitle">Total Unit</div>
+                  <div className="compact-value">{stats.total}</div>
+                </div>
               </div>
             </Card>
           </div>
@@ -1417,11 +1434,6 @@ function DashboardPage({
             <ChartCard title="Per Kategori" entries={groupEntries(data, (item) => item.categoryLabel)} />
             <ChartCard title="Per Jenis Kendaraan" entries={groupEntries(data, (item) => item.vehicleTypeLabel)} color="var(--amber2)" />
           </div>
-          <Card title="Rekap Barang Bekas" subtitle="Ringkasan barang non-sparepart / material">
-            <div className="card-body">
-              <UsedGoodsStatsGrid stats={stats.usedGoods} compact />
-            </div>
-          </Card>
         </>
       ) : (
         <>
@@ -1439,11 +1451,13 @@ function DashboardPage({
               <DataTable columns={usedGoodsRecentColumns()} data={usedGoods.slice(0, 8)} getRowKey={(row) => row.id} onRowClick={onOpenUsedGoods} />
             </Card>
             <Card title="Kondisi Barang Bekas">
-              <ProgressRow label="LAYAK JUAL" value={stats.usedGoods.saleable} max={stats.usedGoods.total} color="var(--teal)" />
-              <ProgressRow label="TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={stats.usedGoods.total} color="var(--red2)" />
-              <div className="compact-panel center">
-                <div className="compact-subtitle">Total Qty</div>
-                <div className="compact-value">{formatNumber(stats.usedGoods.totalQty)}</div>
+              <div className="card-body progress-card-body">
+                <ProgressRow label="LAYAK JUAL" value={stats.usedGoods.saleable} max={stats.usedGoods.total} color="var(--teal)" />
+                <ProgressRow label="TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={stats.usedGoods.total} color="var(--red2)" />
+                <div className="compact-panel center">
+                  <div className="compact-subtitle">Total Qty</div>
+                  <div className="compact-value">{formatNumber(stats.usedGoods.totalQty)}</div>
+                </div>
               </div>
             </Card>
           </div>
@@ -2026,28 +2040,38 @@ function UserManagementPage({
 
 function LaporanPage({
   data,
+  usedGoods,
   stats,
   onOpen,
+  onOpenUsedGoods,
   onExport,
+  onUsedGoodsExport,
   canExport
 }: {
   data: SparepartDTO[];
+  usedGoods: UsedGoodsDTO[];
   stats: DashboardStats;
   onOpen: (part: SparepartDTO) => void;
+  onOpenUsedGoods: (item: UsedGoodsDTO) => void;
   onExport: () => void;
+  onUsedGoodsExport: () => void;
   canExport: boolean;
 }) {
+  const [tab, setTab] = useState<"sparepart" | "usedGoods">("sparepart");
   const categoryRows = groupEntries(data, (item) => item.categoryLabel);
   const trend = trendEntries(data);
+  const usedGoodsCategoryRows = usedGoodsGroupEntries(usedGoods, (item) => item.categoryLabel);
+  const usedGoodsBranchRows = usedGoodsGroupEntries(usedGoods, (item) => item.branchName);
+  const activeExport = tab === "sparepart" ? onExport : onUsedGoodsExport;
 
   return (
     <div className="page-stack">
       <PageHead
         title="Laporan & Analitik"
-        subtitle="Ringkasan komprehensif pendataan sparepart ex-service INDOPAKET 2026"
+        subtitle={tab === "sparepart" ? "Ringkasan komprehensif pendataan sparepart ex-service INDOPAKET 2026" : "Ringkasan komprehensif barang bekas / material operasional"}
         actions={
           <>
-            {canExport ? <button className="btn btn-ghost btn-sm" type="button" onClick={onExport}>
+            {canExport ? <button className="btn btn-ghost btn-sm" type="button" onClick={activeExport}>
               <Download size={14} />
               Export CSV
             </button> : null}
@@ -2058,23 +2082,50 @@ function LaporanPage({
           </>
         }
       />
-      <div className="stats stats-4">
-        <StatCard label="Total Sparepart" value={stats.total} icon={Package} tone="blue" />
-        <StatCard label="Layak Jual" value={stats.saleable} meta={<span className="meta-up">{pct(stats.saleable, stats.total)}%</span>} icon={CheckCircle2} tone="teal" />
-        <StatCard label="Rusak" value={stats.damaged} meta={<span className="meta-down">{pct(stats.damaged, stats.total)}%</span>} icon={X} tone="red" />
-        <StatCard label="Unik PJPP" value={stats.uniquePjpp} icon={FileBarChart} tone="amber" />
+      <div className="tabs">
+        <button className={tab === "sparepart" ? "tab-btn active" : "tab-btn"} type="button" onClick={() => setTab("sparepart")}>
+          Sparepart
+        </button>
+        <button className={tab === "usedGoods" ? "tab-btn active" : "tab-btn"} type="button" onClick={() => setTab("usedGoods")}>
+          Barang Bekas
+        </button>
       </div>
-      <div className="grid-2">
-        <Card title="Rekap per Kategori & Cabang">
-          <DataTable columns={reportRekapColumns()} data={categoryRows} getRowKey={(row) => row.label} />
-        </Card>
-        <Card title="Tren Masuk per Bulan">
-          <BarChart entries={trend} />
-        </Card>
-      </div>
-      <Card title={`Tabel Lengkap - Semua ${data.length} Data Sparepart`} subtitle="INDOPAKET 2026">
-        <DataTable columns={reportColumns()} data={data} getRowKey={(row) => row.id} onRowClick={onOpen} />
-      </Card>
+      {tab === "sparepart" ? (
+        <>
+          <div className="stats stats-4">
+            <StatCard label="Total Sparepart" value={stats.total} icon={Package} tone="blue" />
+            <StatCard label="Layak Jual" value={stats.saleable} meta={<span className="meta-up">{pct(stats.saleable, stats.total)}%</span>} icon={CheckCircle2} tone="teal" />
+            <StatCard label="Rusak" value={stats.damaged} meta={<span className="meta-down">{pct(stats.damaged, stats.total)}%</span>} icon={X} tone="red" />
+            <StatCard label="Unik PJPP" value={stats.uniquePjpp} icon={FileBarChart} tone="amber" />
+          </div>
+          <div className="grid-2">
+            <Card title="Rekap per Kategori & Cabang">
+              <DataTable columns={reportRekapColumns()} data={categoryRows} getRowKey={(row) => row.label} />
+            </Card>
+            <Card title="Tren Masuk per Bulan">
+              <BarChart entries={trend} />
+            </Card>
+          </div>
+          <Card title={`Tabel Lengkap - Semua ${data.length} Data Sparepart`} subtitle="INDOPAKET 2026">
+            <DataTable columns={reportColumns()} data={data} getRowKey={(row) => row.id} onRowClick={onOpen} />
+          </Card>
+        </>
+      ) : (
+        <>
+          <UsedGoodsStatsGrid stats={stats.usedGoods} />
+          <div className="grid-2">
+            <Card title="Rekap Barang Bekas per Kategori">
+              <DataTable columns={usedGoodsInventoryColumns()} data={usedGoodsCategoryRows} getRowKey={(row) => row.label} />
+            </Card>
+            <Card title="Rekap Barang Bekas per Cabang">
+              <DataTable columns={usedGoodsBranchStockColumns()} data={usedGoodsBranchRows} getRowKey={(row) => row.label} />
+            </Card>
+          </div>
+          <Card title={`Tabel Lengkap - Semua ${usedGoods.length} Data Barang Bekas`} subtitle="INDOPAKET 2026">
+            <DataTable columns={usedGoodsReportColumns()} data={usedGoods} getRowKey={(row) => row.id} onRowClick={onOpenUsedGoods} />
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -2456,17 +2507,12 @@ function BranchModal({
             <input className="form-control" value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="IGR CIPUTAT" />
           </Field>
         </div>
-        <div className="form-row two">
+        <div className="form-row three">
           <Field label="Regional">
             <input className="form-control" value={form.regional} onChange={(event) => set("regional", event.target.value)} placeholder="Jabodetabek" />
           </Field>
           <Field label="Kota">
             <input className="form-control" value={form.city} onChange={(event) => set("city", event.target.value)} placeholder="Tangerang" />
-          </Field>
-        </div>
-        <div className="form-row two">
-          <Field label="Telepon">
-            <input className="form-control" value={form.phone} onChange={(event) => set("phone", event.target.value)} placeholder="021..." />
           </Field>
           <Field label="Status">
             <select className="form-control" value={form.isActive ? "true" : "false"} onChange={(event) => set("isActive", event.target.value === "true")}>
@@ -2475,9 +2521,6 @@ function BranchModal({
             </select>
           </Field>
         </div>
-        <Field label="Alamat">
-          <textarea className="form-control" value={form.address} onChange={(event) => set("address", event.target.value)} placeholder="Alamat cabang" />
-        </Field>
       </div>
       {error ? <div className="form-error">{error}</div> : null}
     </Modal>
@@ -2540,7 +2583,7 @@ function UserModal({
         </div>
         {!editing ? (
           <Field label="Password Awal" required>
-            <input className="form-control" type="password" value={form.password} onChange={(event) => set("password", event.target.value)} placeholder="Minimal 6 karakter" />
+            <PasswordInput value={form.password} onChange={(event) => set("password", event.target.value)} placeholder="Minimal 6 karakter" />
           </Field>
         ) : null}
       </div>
@@ -2948,7 +2991,7 @@ function ChartCard({
 
   return (
     <Card title={title}>
-      <div className="card-body">
+      <div className="card-body progress-card-body">
         {entries.map((entry, index) => (
           <ProgressRow key={entry.label} label={entry.label} value={entry.total} max={max} color={color || chartColors[index % chartColors.length]} />
         ))}
@@ -2970,7 +3013,7 @@ function UsedGoodsChartCard({
 
   return (
     <Card title={title}>
-      <div className="card-body">
+      <div className="card-body progress-card-body">
         {entries.map((entry, index) => (
           <ProgressRow key={entry.label} label={entry.label} value={entry.total} max={max} color={color || chartColors[index % chartColors.length]} />
         ))}
@@ -3241,6 +3284,22 @@ function reportColumns(): Column<SparepartDTO>[] {
     { key: "vehicle", header: "Jenis Kendaraan", cell: (part) => part.vehicleTypeLabel },
     { key: "condition", header: "Kondisi", cell: (part) => <ConditionBadge part={part} /> },
     { key: "storage", header: "Lokasi", cell: (part) => <span className="td-muted">{part.storageLocation}</span> }
+  ];
+}
+
+function usedGoodsReportColumns(): Column<UsedGoodsDTO>[] {
+  return [
+    { key: "no", header: "No", cell: (_item, index) => <span className="td-muted">{index + 1}</span> },
+    { key: "code", header: "Kode Barang", cell: (item) => <span className="mono-blue">{item.code}</span> },
+    { key: "branch", header: "Cabang", cell: (item) => <Badge tone={branchTone(item.branchName)}>{item.branchName}</Badge> },
+    { key: "date", header: "Tgl Input", cell: (item) => <span className="td-muted">{formatDate(item.inputDate)}</span> },
+    { key: "name", header: "Nama Barang", cell: (item) => <span className="td-bold">{item.name}</span> },
+    { key: "category", header: "Kategori", cell: (item) => <Badge>{item.categoryLabel}</Badge> },
+    { key: "qty", header: "Qty", cell: (item) => <strong>{formatNumber(item.qty)}</strong> },
+    { key: "unit", header: "Satuan", cell: (item) => <Badge tone="vehicle">{item.unitLabel}</Badge> },
+    { key: "weight", header: "Est. Berat", cell: (item) => (item.estimatedWeightKg === null ? "-" : `${formatNumber(item.estimatedWeightKg)} kg`) },
+    { key: "condition", header: "Kondisi", cell: (item) => <UsedGoodsConditionBadge item={item} /> },
+    { key: "location", header: "Lokasi", cell: (item) => <span className="td-muted">{item.storageLocation || "-"}</span> }
   ];
 }
 

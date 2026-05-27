@@ -7,7 +7,6 @@ import {
   Home,
   Archive,
   Package,
-  Plus,
   Printer,
   ShoppingCart,
   Warehouse
@@ -51,7 +50,6 @@ export function Sidebar({
   stats,
   currentUser,
   onNavigate,
-  onAdd,
   onExport,
   onPrint
 }: {
@@ -59,7 +57,6 @@ export function Sidebar({
   stats: DashboardStats;
   currentUser: SessionUser;
   onNavigate: (page: PageKey) => void;
-  onAdd: () => void;
   onExport: () => void;
   onPrint: () => void;
 }) {
@@ -112,7 +109,6 @@ export function Sidebar({
           );
         })}
         <div className="sb-section">Tools</div>
-        {!isCentralRole(currentUser.role) ? <SidebarTool label="Input Barang Baru" icon={Plus} onClick={onAdd} /> : null}
         {canExport ? <SidebarTool label="Export CSV" icon={Download} onClick={onExport} /> : null}
         <SidebarTool label="Cetak Laporan" icon={Printer} onClick={onPrint} />
       </nav>
