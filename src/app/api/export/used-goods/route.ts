@@ -1,11 +1,18 @@
 import { buildUsedGoodsCsv } from "@/lib/csv";
+import { applyBranchScope, canExportData } from "@/lib/access-control";
+import { getSessionUser } from "@/lib/auth";
 import { toUsedGoodsDTO } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const user = getSessionUser();
+  if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!canExportData(user)) return new Response("Forbidden", { status: 403 });
+
   const items = await prisma.usedGoods.findMany({
+    where: applyBranchScope(user, {}),
     include: {
       branch: true
     },

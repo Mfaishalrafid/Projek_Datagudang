@@ -24,7 +24,14 @@ describe("used goods mapper", () => {
       branch: {
         id: "branch-sirclo",
         name: "Sirclo",
-        code: "SIRCLO"
+        code: "SIRCLO",
+        regional: "Jabodetabek",
+        city: "Tangerang",
+        address: null,
+        phone: null,
+        isActive: true,
+        createdAt: new Date("2026-05-21T00:00:00.000Z"),
+        updatedAt: new Date("2026-05-21T00:00:00.000Z")
       }
     });
 

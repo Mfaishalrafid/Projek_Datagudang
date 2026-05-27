@@ -23,6 +23,7 @@ npm install
 
 ```bash
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/barkas_plus?schema=public"
+AUTH_SECRET="ganti-dengan-secret-lokal-yang-panjang"
 ```
 
 3. Jalankan migration dan seed:
@@ -32,7 +33,7 @@ npx prisma migrate dev
 npm run prisma:seed
 ```
 
-Seed v3 berisi cabang awal, cabang/lokasi tambahan dari data v3, 30 sparepart dari array `DB`, dan 4 barang bekas dari array `BB` referensi.
+Seed berisi cabang awal, cabang/lokasi tambahan dari data v3, 30 sparepart dari array `DB`, 4 barang bekas dari array `BB` referensi, dan akun demo v4 dengan password yang tersimpan sebagai hash.
 
 - `SPI RANGKASBITUNG`
 - `IGR CIPUTAT`
@@ -50,6 +51,15 @@ Jumlah awal setelah seed:
 - 24 `RUSAK`
 - 4 barang bekas
 
+Akun demo setelah seed:
+
+- `superadmin@barkas.local` / `SuperAdmin123!`
+- `adminpusat@barkas.local` / `AdminPusat123!`
+- `admin.ciputat@barkas.local` / `AdminCabang123!`
+- `karyawan.ciputat@barkas.local` / `Karyawan123!`
+
+Ganti password demo sebelum dipakai untuk data operasional.
+
 4. Jalankan aplikasi:
 
 ```bash
@@ -60,6 +70,10 @@ Buka `http://localhost:3000`.
 
 ## Fitur
 
+- Login, logout, session cookie, dan role `SUPER_ADMIN`, `ADMIN_PUSAT`, `ADMIN_CABANG`, `KARYAWAN_CABANG`.
+- Dashboard Pusat untuk `SUPER_ADMIN` dan `ADMIN_PUSAT`; Dashboard Cabang untuk role cabang.
+- Data scope pusat/cabang di server action dan API route, sehingga user cabang hanya memakai `branchId` dari session.
+- Manajemen cabang dasar dan manajemen user dasar sesuai batasan role.
 - Dashboard stat dan distribusi kondisi, cabang, kategori, jenis kendaraan.
 - Pendataan sparepart dengan search, filter kondisi/kategori/cabang/jenis kendaraan, tambah, edit, hapus, drawer detail.
 - Pendataan barang bekas dengan statistik, filter kondisi/kategori/cabang, search, detail, tambah, hapus.
@@ -72,10 +86,14 @@ Buka `http://localhost:3000`.
 - Export CSV barang bekas di `/api/export/used-goods`.
 - Print mode otomatis menyembunyikan sidebar, topbar, modal, drawer, toast, dan action button.
 
+Role cabang tidak melihat menu Layak Jual dan tidak bisa membuat order jual dari server action/API.
+
 ## Server Actions
 
 Fungsi utama ada di `src/app/actions.ts`:
 
+- `loginAction(formData)`
+- `logoutAction()`
 - `getDashboardStats()`
 - `listSpareparts(filters)`
 - `createSparepart(data)`
@@ -91,6 +109,11 @@ Fungsi utama ada di `src/app/actions.ts`:
 - `getUsedGoodsStats()`
 - `getUsedGoodsReportData()`
 - `exportUsedGoodsCsv()`
+- `createBranch(data)`
+- `updateBranch(id, data)`
+- `createUser(data)`
+- `updateUser(id, data)`
+- `resetUserPassword(id, data)`
 
 ## Validasi
 

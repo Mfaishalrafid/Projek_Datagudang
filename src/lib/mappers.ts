@@ -3,13 +3,14 @@ import {
   categoryLabels,
   conditionLabels,
   saleStatusLabels,
+  roleLabels,
   usedGoodsCategoryLabels,
   usedGoodsConditionLabels,
   usedGoodsUnitLabels,
   vehicleTypeLabels
 } from "@/data/options";
-import type { BranchDTO, SaleOrderDTO, SparepartDTO, UsedGoodsDTO } from "@/lib/types";
-import type { Branch, SaleOrder, Sparepart, UsedGoods } from "@prisma/client";
+import type { BranchDTO, SaleOrderDTO, SparepartDTO, UsedGoodsDTO, UsedGoodsSaleOrderDTO, UserDTO } from "@/lib/types";
+import type { Branch, SaleOrder, Sparepart, UsedGoods, UsedGoodsSaleOrder, User } from "@prisma/client";
 
 type SparepartWithBranch = Sparepart & {
   branch: Branch;
@@ -25,11 +26,43 @@ type UsedGoodsWithBranch = UsedGoods & {
   branch: Branch;
 };
 
+type UsedGoodsSaleOrderWithItem = UsedGoodsSaleOrder & {
+  usedGoods: UsedGoods & {
+    branch: Branch;
+  };
+};
+
+type UserWithBranch = User & {
+  branch: Branch | null;
+};
+
 export function toBranchDTO(branch: Branch): BranchDTO {
   return {
     id: branch.id,
     name: branch.name,
-    code: branch.code
+    code: branch.code,
+    regional: branch.regional,
+    city: branch.city,
+    address: branch.address,
+    phone: branch.phone,
+    isActive: branch.isActive,
+    createdAt: branch.createdAt.toISOString(),
+    updatedAt: branch.updatedAt.toISOString()
+  };
+}
+
+export function toUserDTO(user: UserWithBranch): UserDTO {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    roleLabel: roleLabels[user.role],
+    branchId: user.branchId,
+    branchName: user.branch?.name || null,
+    isActive: user.isActive,
+    createdAt: user.createdAt.toISOString(),
+    updatedAt: user.updatedAt.toISOString()
   };
 }
 
@@ -71,6 +104,27 @@ export function toSaleOrderDTO(order: SaleOrderWithSparepart): SaleOrderDTO {
     saleDate: order.saleDate.toISOString(),
     status: order.status,
     statusLabel: saleStatusLabels[order.status],
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString()
+  };
+}
+
+export function toUsedGoodsSaleOrderDTO(order: UsedGoodsSaleOrderWithItem): UsedGoodsSaleOrderDTO {
+  return {
+    id: order.id,
+    usedGoodsId: order.usedGoodsId,
+    usedGoodsCode: order.usedGoods.code,
+    usedGoodsName: order.usedGoods.name,
+    categoryLabel: usedGoodsCategoryLabels[order.usedGoods.category],
+    branchName: order.usedGoods.branch.name,
+    qty: Number(order.qty),
+    unitLabel: usedGoodsUnitLabels[order.usedGoods.unit],
+    buyerName: order.buyerName,
+    price: Number(order.price),
+    saleDate: order.saleDate.toISOString(),
+    status: order.status,
+    statusLabel: saleStatusLabels[order.status],
+    notes: order.notes,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString()
   };

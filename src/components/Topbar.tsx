@@ -1,14 +1,18 @@
-import { Download, Plus, Search } from "lucide-react";
+import { Download, LogOut, Plus, Search, UserCircle } from "lucide-react";
 import type { PageKey } from "@/components/Sidebar";
+import type { SessionUser } from "@/lib/access-control";
+import { roleLabels } from "@/data/options";
 
 const pageNames: Record<PageKey, string> = {
   dashboard: "Dashboard",
   pendataan: "Pendataan Sparepart",
   inventori: "Inventori & Stok",
-  penjualan: "Sparepart Layak Jual",
+  penjualan: "Layak Jual",
   barangbekas: "Pendataan Barang Bekas",
   cabang: "Data per Cabang",
-  laporan: "Laporan & Analitik"
+  laporan: "Laporan & Analitik",
+  branches: "Manajemen Cabang",
+  users: "Manajemen User"
 };
 
 export function getPageTitle(page: PageKey) {
@@ -21,7 +25,10 @@ export function Topbar({
   onQueryChange,
   onSubmitSearch,
   onExport,
-  onAdd
+  onAdd,
+  onLogout,
+  currentUser,
+  canExport
 }: {
   activePage: PageKey;
   query: string;
@@ -29,6 +36,9 @@ export function Topbar({
   onSubmitSearch: () => void;
   onExport: () => void;
   onAdd: () => void;
+  onLogout: () => void;
+  currentUser: SessionUser;
+  canExport: boolean;
 }) {
   const title = getPageTitle(activePage);
 
@@ -48,13 +58,21 @@ export function Topbar({
         <Search size={15} />
         <input placeholder="Cari sparepart / barang bekas..." value={query} onChange={(event) => onQueryChange(event.target.value)} />
       </form>
-      <button className="btn btn-ghost btn-sm" onClick={onExport} type="button">
+      {canExport ? <button className="btn btn-ghost btn-sm" onClick={onExport} type="button">
         <Download size={14} />
         CSV
-      </button>
+      </button> : null}
       <button className="btn btn-primary" onClick={onAdd} type="button">
         <Plus size={15} />
         Input Barang
+      </button>
+      <div className="user-chip">
+        <UserCircle size={16} />
+        <span>{currentUser.name}</span>
+        <strong>{roleLabels[currentUser.role]}</strong>
+      </div>
+      <button className="icon-button" onClick={onLogout} type="button" title="Logout">
+        <LogOut size={16} />
       </button>
     </header>
   );

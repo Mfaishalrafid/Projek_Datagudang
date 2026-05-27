@@ -8,3 +8,5 @@ coverage
 dev-server*.log
 *.tsbuildinfo
 prisma/dev.db
+
+.next-stale-*/

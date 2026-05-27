@@ -6,21 +6,26 @@ import {
   sparepartSeeds,
   usedGoodsSeeds
 } from "../src/data/seed-data";
+import { hashPassword } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.saleOrder.deleteMany();
-  await prisma.sparepart.deleteMany();
-  await prisma.usedGoods.deleteMany();
-
   const branches = new Map<string, string>();
 
   for (const branch of branchSeeds) {
     const created = await prisma.branch.upsert({
       where: { name: branch.name },
-      update: { code: branch.code },
-      create: branch
+      update: {
+        code: branch.code,
+        regional: branch.regional,
+        city: branch.city,
+        isActive: true
+      },
+      create: {
+        ...branch,
+        isActive: true
+      }
     });
     branches.set(created.name, created.id);
   }
@@ -33,11 +38,32 @@ async function main() {
       throw new Error(`Branch not found for seed: ${item.branchName}`);
     }
 
-    await prisma.sparepart.create({
-      data: {
+    const removedDate = item.removedDate ? new Date(`${item.removedDate}T00:00:00.000Z`) : null;
+    const existing = await prisma.sparepart.findFirst({
+      where: {
         pjpp: item.pjpp,
         branchId,
-        removedDate: item.removedDate ? new Date(`${item.removedDate}T00:00:00.000Z`) : null,
+        removedDate,
+        name: item.name,
+        plateNumber: item.plateNumber
+      },
+      select: { id: true }
+    });
+
+    await prisma.sparepart.upsert({
+      where: { id: existing?.id || "__new_sparepart_seed__" },
+      update: {
+        category: item.category,
+        vehicleCode: item.vehicleCode,
+        vehicleType: item.vehicleType,
+        condition: item.condition,
+        storageLocation: item.storageLocation,
+        notes: item.notes
+      },
+      create: {
+        pjpp: item.pjpp,
+        branchId,
+        removedDate,
         name: item.name,
         category: item.category,
         plateNumber: item.plateNumber,
@@ -92,14 +118,71 @@ async function main() {
     });
   }
 
-  const [total, layak, rusak, usedGoodsTotal] = await Promise.all([
+  const demoBranchId = branches.get("IGR CIPUTAT");
+  if (!demoBranchId) {
+    throw new Error("Demo branch IGR CIPUTAT not found for user seed.");
+  }
+
+  const userSeeds = [
+    {
+      name: "Super Admin BARKAS",
+      email: "superadmin@barkas.local",
+      password: "SuperAdmin123!",
+      role: "SUPER_ADMIN" as const,
+      branchId: null
+    },
+    {
+      name: "Admin Pusat INDOPAKET",
+      email: "adminpusat@barkas.local",
+      password: "AdminPusat123!",
+      role: "ADMIN_PUSAT" as const,
+      branchId: null
+    },
+    {
+      name: "Admin Cabang IGR Ciputat",
+      email: "admin.ciputat@barkas.local",
+      password: "AdminCabang123!",
+      role: "ADMIN_CABANG" as const,
+      branchId: demoBranchId
+    },
+    {
+      name: "Karyawan Cabang IGR Ciputat",
+      email: "karyawan.ciputat@barkas.local",
+      password: "Karyawan123!",
+      role: "KARYAWAN_CABANG" as const,
+      branchId: demoBranchId
+    }
+  ];
+
+  for (const user of userSeeds) {
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: {
+        name: user.name,
+        role: user.role,
+        branchId: user.branchId,
+        isActive: true
+      },
+      create: {
+        name: user.name,
+        email: user.email,
+        passwordHash: hashPassword(user.password),
+        role: user.role,
+        branchId: user.branchId,
+        isActive: true
+      }
+    });
+  }
+
+  const [total, layak, rusak, usedGoodsTotal, userTotal] = await Promise.all([
     prisma.sparepart.count(),
     prisma.sparepart.count({ where: { condition: "LAYAK_JUAL" } }),
     prisma.sparepart.count({ where: { condition: "RUSAK" } }),
-    prisma.usedGoods.count()
+    prisma.usedGoods.count(),
+    prisma.user.count()
   ]);
 
-  console.log(`Seed complete: ${total} sparepart, ${layak} LAYAK JUAL, ${rusak} RUSAK, ${usedGoodsTotal} barang bekas.`);
+  console.log(`Seed complete: ${total} sparepart, ${layak} LAYAK JUAL, ${rusak} RUSAK, ${usedGoodsTotal} barang bekas, ${userTotal} users.`);
 }
 
 main()

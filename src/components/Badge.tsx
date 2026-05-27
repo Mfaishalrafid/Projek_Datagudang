@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
 
-type BadgeTone =
+export type BadgeTone =
   | "saleable"
   | "damaged"
   | "category"

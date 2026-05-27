@@ -3,12 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { prismaMock, revalidatePathMock, noStoreMock } = vi.hoisted(() => ({
   prismaMock: {
     branch: {
-      findUnique: vi.fn()
+      findUnique: vi.fn(),
+      findFirst: vi.fn()
     },
     usedGoods: {
       count: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn()
+    },
+    usedGoodsSaleOrder: {
       findMany: vi.fn()
     }
   },
@@ -23,6 +28,16 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
   unstable_noStore: noStoreMock
+}));
+
+vi.mock("@/lib/auth", () => ({
+  requireActionUser: vi.fn(() => ({
+    id: "user-admin-pusat",
+    name: "Admin Pusat",
+    email: "adminpusat@barkas.local",
+    role: "ADMIN_PUSAT",
+    branchId: null
+  }))
 }));
 
 import { createUsedGoods, deleteUsedGoods, exportUsedGoodsCsv, getUsedGoodsStats, listUsedGoods } from "@/app/actions";
@@ -60,6 +75,9 @@ describe("used goods server actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.branch.findUnique.mockResolvedValue(branch);
+    prismaMock.branch.findFirst.mockResolvedValue(branch);
+    prismaMock.usedGoods.findUnique.mockResolvedValue(makeRecord());
+    prismaMock.usedGoodsSaleOrder.findMany.mockResolvedValue([]);
   });
 
   it("creates used goods with valid data and generated code", async () => {
@@ -124,7 +142,7 @@ describe("used goods server actions", () => {
       })
     ).rejects.toThrow();
 
-    expect(prismaMock.branch.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.branch.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.usedGoods.create).not.toHaveBeenCalled();
   });
 

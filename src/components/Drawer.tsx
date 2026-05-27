@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Edit3, Printer, ShoppingCart, Trash2, X } from "lucide-react";
-import { Badge, branchTone } from "@/components/Badge";
+import { Badge, branchTone, type BadgeTone } from "@/components/Badge";
 import { formatDate } from "@/lib/format";
 import type { SparepartDTO } from "@/lib/types";
 import type { ReactNode } from "react";
@@ -11,6 +11,9 @@ export function Drawer({
   onSale,
   onEdit,
   onDelete,
+  lockStatus,
+  canSell = true,
+  canDelete = true,
   onPrintLabel
 }: {
   sparepart: SparepartDTO | null;
@@ -18,9 +21,19 @@ export function Drawer({
   onSale: (sparepart: SparepartDTO) => void;
   onEdit: (sparepart: SparepartDTO) => void;
   onDelete: (sparepart: SparepartDTO) => void;
+  lockStatus?: {
+    canEdit: boolean;
+    canSell: boolean;
+    label: string;
+    tone: BadgeTone;
+  } | null;
+  canSell?: boolean;
+  canDelete?: boolean;
   onPrintLabel: () => void;
 }) {
   const open = Boolean(sparepart);
+  const canEditItem = lockStatus?.canEdit ?? true;
+  const canSellItem = lockStatus?.canSell ?? true;
 
   return (
     <>
@@ -72,24 +85,31 @@ export function Drawer({
               </section>
             </div>
             <div className="drawer-footer">
-              {sparepart.condition === "LAYAK_JUAL" ? (
+              {canSell && sparepart.condition === "LAYAK_JUAL" && canSellItem ? (
                 <button className="btn btn-teal btn-sm" type="button" onClick={() => onSale(sparepart)}>
                   <ShoppingCart size={14} />
                   Buat Order Jual
                 </button>
               ) : null}
+              {!canEditItem && lockStatus ? (
+                <Badge tone={lockStatus.tone} dot>{lockStatus.label}</Badge>
+              ) : null}
               <button className="btn btn-ghost btn-sm" type="button" onClick={onPrintLabel}>
                 <Printer size={14} />
                 Print Label
               </button>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => onEdit(sparepart)}>
-                <Edit3 size={14} />
-                Edit
-              </button>
-              <button className="btn btn-danger btn-sm" type="button" onClick={() => onDelete(sparepart)}>
-                <Trash2 size={14} />
-                Hapus
-              </button>
+              {canEditItem ? (
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => onEdit(sparepart)}>
+                  <Edit3 size={14} />
+                  Edit
+                </button>
+              ) : null}
+              {canDelete && canEditItem ? (
+                <button className="btn btn-danger btn-sm" type="button" onClick={() => onDelete(sparepart)}>
+                  <Trash2 size={14} />
+                  Hapus
+                </button>
+              ) : null}
             </div>
           </>
         ) : null}

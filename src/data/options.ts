@@ -3,6 +3,7 @@ import type {
   Category,
   Condition,
   SaleStatus,
+  Role,
   UsedGoodsCategory,
   UsedGoodsCondition,
   UsedGoodsUnit,
@@ -11,14 +12,14 @@ import type {
 } from "@prisma/client";
 
 export const branchSeeds = [
-  { name: "SPI RANGKASBITUNG", code: "SPI-RKS" },
-  { name: "IGR CIPUTAT", code: "IGR-CPT" },
-  { name: "IGR CIKOKOL", code: "IGR-CKL" },
-  { name: "IGRSMG", code: "IGR-SMG" },
-  { name: "Sirclo", code: "SIRCLO" },
-  { name: "GW Cargo TGR", code: "GW-TGR" },
-  { name: "GW Ecomm", code: "GW-ECOMM" },
-  { name: "HUB JKT 1", code: "HUB-JKT1" }
+  { name: "SPI RANGKASBITUNG", code: "SPI-RKS", regional: "Banten", city: "Rangkasbitung" },
+  { name: "IGR CIPUTAT", code: "IGR-CPT", regional: "Jabodetabek", city: "Ciputat" },
+  { name: "IGR CIKOKOL", code: "IGR-CKL", regional: "Banten", city: "Tangerang" },
+  { name: "IGRSMG", code: "IGR-SMG", regional: "Jawa Tengah", city: "Semarang" },
+  { name: "Sirclo", code: "SIRCLO", regional: "Jabodetabek", city: "Tangerang" },
+  { name: "GW Cargo TGR", code: "GW-TGR", regional: "Jabodetabek", city: "Tangerang" },
+  { name: "GW Ecomm", code: "GW-ECOMM", regional: "Jabodetabek", city: "Jakarta" },
+  { name: "HUB JKT 1", code: "HUB-JKT1", regional: "Jabodetabek", city: "Jakarta" }
 ] as const;
 
 export const categoryLabels: Record<Category, string> = {
@@ -75,6 +76,13 @@ export const saleStatusLabels: Record<SaleStatus, string> = {
   APPROVAL: "Approval",
   TERJUAL: "Terjual",
   BATAL: "Batal"
+};
+
+export const roleLabels: Record<Role, string> = {
+  SUPER_ADMIN: "Super Admin",
+  ADMIN_PUSAT: "Admin Pusat",
+  ADMIN_CABANG: "Admin Cabang",
+  KARYAWAN_CABANG: "Karyawan Cabang"
 };
 
 export const usedGoodsConditionLabels: Record<UsedGoodsCondition, string> = {
@@ -170,3 +178,10 @@ export const usedGoodsUnitOptions = Object.entries(usedGoodsUnitLabels).map(([va
   value: value as UsedGoodsUnit,
   label
 }));
+
+export const roleOptions = Object.entries(roleLabels).map(([value, label]) => ({
+  value: value as Role,
+  label
+}));
+
+export const assignableRoleOptions = roleOptions.filter((item) => item.value !== "SUPER_ADMIN");

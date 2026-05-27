@@ -77,12 +77,44 @@ enum UsedGoodsUnit {
   DUS
 }
 
+enum Role {
+  SUPER_ADMIN
+  ADMIN_PUSAT
+  ADMIN_CABANG
+  KARYAWAN_CABANG
+}
+
 model Branch {
   id         String      @id @default(cuid())
   name       String      @unique
-  code       String?
+  code       String?     @unique
+  regional   String?
+  city       String?
+  address    String?
+  phone      String?
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  users      User[]
   spareparts Sparepart[]
   usedGoods  UsedGoods[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  branchId     String?
+  branch       Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([branchId])
+  @@index([isActive])
 }
 
 model Sparepart {
@@ -143,6 +175,7 @@ model UsedGoods {
   storageLocation   String?
   pic               String?
   notes             String?            @db.Text
+  saleOrders        UsedGoodsSaleOrder[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -150,4 +183,22 @@ model UsedGoods {
   @@index([category])
   @@index([condition])
   @@index([inputDate])
+}
+
+model UsedGoodsSaleOrder {
+  id          String    @id @default(cuid())
+  usedGoodsId String
+  usedGoods   UsedGoods @relation(fields: [usedGoodsId], references: [id], onDelete: Cascade)
+  qty         Decimal   @db.Decimal(14, 2)
+  buyerName   String
+  price       Decimal   @db.Decimal(14, 2)
+  saleDate    DateTime  @db.Date
+  status      SaleStatus @default(APPROVAL)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([usedGoodsId])
+  @@index([status])
+  @@index([saleDate])
 }

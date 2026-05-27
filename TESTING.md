@@ -1,6 +1,6 @@
 # Testing BARKAS+
 
-Dokumen ini mencatat setup test untuk fitur v3: Sparepart Ex-Service + Barang Bekas / Material.
+Dokumen ini mencatat setup test untuk fitur v3 dan v4: Sparepart Ex-Service, Barang Bekas / Material, login, session, role, dan data scope pusat/cabang.
 
 ## Command
 
@@ -8,6 +8,7 @@ Dokumen ini mencatat setup test untuk fitur v3: Sparepart Ex-Service + Barang Be
 - `npm run test:watch` menjalankan Vitest watch mode.
 - `npm run test:unit` menjalankan test unit, integration, dan component yang ada di folder `tests`.
 - `npm run lint` menjalankan lint Next.js.
+- `npm run typecheck` menjalankan TypeScript check tanpa emit.
 - `npm run build` menjalankan build production Next.js.
 
 ## Coverage Fitur
@@ -21,10 +22,22 @@ Test yang ditambahkan mencakup:
 - Kalkulasi statistik barang bekas: total item, total qty, layak jual, tidak layak, estimasi berat, cabang aktif.
 - Server actions barang bekas dengan Prisma mock: list, create, delete, stats, report/export CSV, filter, dan search kategori.
 - UI React: tab Dashboard, Inventori, Data per Cabang, Pendataan Barang Bekas, input chooser, modal barang bekas, detail, delete, filter, search, empty state, dan global search.
+- Validasi v4: login, branch, user, role, dan pembatasan pembuatan user `SUPER_ADMIN` dari UI/action.
+- Permission helper: akses pusat/cabang, menu sidebar berdasarkan role, Layak Jual hanya untuk `SUPER_ADMIN` dan `ADMIN_PUSAT`.
+- Branch scope helper: user pusat bisa membaca semua data, user cabang hanya membaca/menulis data `branchId` dari session.
+- Server actions v4: user cabang tidak bisa manipulasi `branchId`, `KARYAWAN_CABANG` tidak bisa hapus data, role cabang tidak bisa membuat order jual, dan `ADMIN_PUSAT` tidak bisa mengelola user `SUPER_ADMIN`.
+- UI v4: login form, Dashboard Cabang, penyembunyian menu Layak Jual untuk role cabang, dan readonly cabang saat input oleh user cabang.
 
 ## Environment
 
 Test saat ini tidak membutuhkan koneksi PostgreSQL karena server actions memakai mock Prisma. Tidak ada test yang menulis ke database development.
+
+Untuk runtime lokal, siapkan:
+
+```bash
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/barkas_plus?schema=public"
+AUTH_SECRET="ganti-dengan-secret-lokal-yang-panjang"
+```
 
 Jika nanti ditambahkan integration test database sungguhan, gunakan environment terpisah:
 
@@ -40,6 +53,7 @@ Pastikan test DB berbeda dari `DATABASE_URL` development.
 - `npm run test:watch`
 - `npm run test:unit`
 - `npm run lint`
+- `npm run typecheck`
 - `npm run build`
 - `npx prisma validate`
 

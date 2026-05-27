@@ -3,6 +3,7 @@ import type {
   Category,
   Condition,
   SaleStatus,
+  Role,
   UsedGoodsCategory,
   UsedGoodsCondition,
   UsedGoodsUnit,
@@ -14,6 +15,26 @@ export type BranchDTO = {
   id: string;
   name: string;
   code: string | null;
+  regional: string | null;
+  city: string | null;
+  address: string | null;
+  phone: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UserDTO = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  roleLabel: string;
+  branchId: string | null;
+  branchName: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SparepartDTO = {
@@ -51,6 +72,25 @@ export type SaleOrderDTO = {
   saleDate: string;
   status: SaleStatus;
   statusLabel: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UsedGoodsSaleOrderDTO = {
+  id: string;
+  usedGoodsId: string;
+  usedGoodsCode: string;
+  usedGoodsName: string;
+  categoryLabel: string;
+  branchName: string;
+  qty: number;
+  unitLabel: string;
+  buyerName: string;
+  price: number;
+  saleDate: string;
+  status: SaleStatus;
+  statusLabel: string;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -99,9 +139,20 @@ export type DashboardStats = {
 };
 
 export type InitialData = {
+  currentUser: {
+    id: string;
+    name: string;
+    email: string;
+    role: Role;
+    branchId: string | null;
+    branchName?: string | null;
+    branchCode?: string | null;
+  };
   branches: BranchDTO[];
   spareparts: SparepartDTO[];
   saleOrders: SaleOrderDTO[];
+  usedGoodsSaleOrders: UsedGoodsSaleOrderDTO[];
   usedGoods: UsedGoodsDTO[];
+  users: UserDTO[];
   stats: DashboardStats;
 };

@@ -13,6 +13,7 @@ import {
   Warehouse
 } from "lucide-react";
 import type { DashboardStats } from "@/lib/types";
+import { getSidebarMenu, isCentralRole, type SessionUser } from "@/lib/access-control";
 
 export type PageKey =
   | "dashboard"
@@ -21,23 +22,34 @@ export type PageKey =
   | "penjualan"
   | "barangbekas"
   | "cabang"
-  | "laporan";
+  | "laporan"
+  | "branches"
+  | "users";
 
-const mainItems = [
-  { key: "dashboard", label: "Dashboard", icon: Home },
-  { key: "pendataan", label: "Pendataan Sparepart", icon: FileBarChart },
-  { key: "inventori", label: "Inventori & Stok", icon: Warehouse },
-  { key: "penjualan", label: "Layak Jual", icon: ShoppingCart }
-] as const;
+const iconByKey = {
+  dashboard: Home,
+  pendataan: FileBarChart,
+  inventori: Warehouse,
+  penjualan: ShoppingCart,
+  barangbekas: Archive,
+  cabang: Building2,
+  laporan: BarChart3,
+  branches: Building2,
+  users: Package
+} satisfies Record<PageKey, typeof Home>;
 
-const referenceItems = [
-  { key: "cabang", label: "Data per Cabang", icon: Building2 },
-  { key: "laporan", label: "Laporan", icon: BarChart3 }
-] as const;
+const sectionLabels = {
+  main: "Menu Utama",
+  usedGoods: "Barang Bekas",
+  reference: "Referensi",
+  management: "Manajemen",
+  tools: "Tools"
+} as const;
 
 export function Sidebar({
   activePage,
   stats,
+  currentUser,
   onNavigate,
   onAdd,
   onExport,
@@ -45,51 +57,63 @@ export function Sidebar({
 }: {
   activePage: PageKey;
   stats: DashboardStats;
+  currentUser: SessionUser;
   onNavigate: (page: PageKey) => void;
   onAdd: () => void;
   onExport: () => void;
   onPrint: () => void;
 }) {
+  const menu = getSidebarMenu(currentUser);
+  const canExport = currentUser.role !== "KARYAWAN_CABANG";
+
   return (
     <aside className="sidebar">
       <div className="sb-logo">
-        <div className="sb-mark">B+</div>
+        <div className="brand-logo-box">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="brand-logo-img" src="/brand/indopaket_nobackground.svg" alt="INDOPAKET" />
+        </div>
         <div>
           <div className="sb-name">BARKAS+</div>
-          <div className="sb-version">Ex-Service & Material v3</div>
+          <div className="sb-version">Multi-Branch v4</div>
         </div>
       </div>
       <div className="sb-org">
         <div className="sb-org-name">INDOPAKET</div>
-        <div className="sb-org-sub">Sparepart & Barang Bekas 2026</div>
+        <div className="sb-org-sub">{isCentralRole(currentUser.role) ? "Dashboard Pusat" : currentUser.branchName || "Dashboard Cabang"}</div>
       </div>
       <nav className="sb-nav">
-        <div className="sb-section">Menu Utama</div>
-        {mainItems.map((item) => (
-          <SidebarItem
-            key={item.key}
-            active={activePage === item.key}
-            label={item.label}
-            icon={item.icon}
-            badge={item.key === "dashboard" || item.key === "pendataan" ? stats.total : item.key === "penjualan" ? stats.saleable : undefined}
-            onClick={() => onNavigate(item.key)}
-          />
-        ))}
-        <div className="sb-section">Barang Bekas</div>
-        <SidebarItem
-          active={activePage === "barangbekas"}
-          label="Pendataan Barang Bekas"
-          icon={Archive}
-          badge={stats.usedGoods.total}
-          onClick={() => onNavigate("barangbekas")}
-        />
-        <div className="sb-section">Referensi</div>
-        {referenceItems.map((item) => (
-          <SidebarItem key={item.key} active={activePage === item.key} label={item.label} icon={item.icon} onClick={() => onNavigate(item.key)} />
-        ))}
+        {(["main", "usedGoods", "reference", "management"] as const).map((section) => {
+          const items = menu.filter((item) => item.section === section);
+          if (!items.length) return null;
+
+          return (
+            <div key={section}>
+              <div className="sb-section">{sectionLabels[section]}</div>
+              {items.map((item) => (
+                <SidebarItem
+                  key={item.key}
+                  active={activePage === item.key}
+                  label={item.label}
+                  icon={iconByKey[item.key as PageKey]}
+                  badge={
+                    item.key === "dashboard" || item.key === "pendataan"
+                      ? stats.total
+                      : item.key === "penjualan"
+                        ? stats.saleable
+                        : item.key === "barangbekas"
+                          ? stats.usedGoods.total
+                          : undefined
+                  }
+                  onClick={() => onNavigate(item.key as PageKey)}
+                />
+              ))}
+            </div>
+          );
+        })}
         <div className="sb-section">Tools</div>
-        <SidebarTool label="Input Barang Baru" icon={Plus} onClick={onAdd} />
-        <SidebarTool label="Export CSV" icon={Download} onClick={onExport} />
+        {!isCentralRole(currentUser.role) ? <SidebarTool label="Input Barang Baru" icon={Plus} onClick={onAdd} /> : null}
+        {canExport ? <SidebarTool label="Export CSV" icon={Download} onClick={onExport} /> : null}
         <SidebarTool label="Cetak Laporan" icon={Printer} onClick={onPrint} />
       </nav>
       <div className="sb-bottom">
@@ -107,7 +131,7 @@ export function Sidebar({
             <span>Rusak</span>
           </div>
         </div>
-        <div className="sb-footnote">Data diimpor dari Excel - 30 sparepart + barang bekas</div>
+        <div className="sb-footnote">{currentUser.name} - {currentUser.role.replaceAll("_", " ")}</div>
       </div>
     </aside>
   );
