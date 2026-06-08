@@ -20,6 +20,7 @@ export type PageKey =
   | "inventori"
   | "penjualan"
   | "barangbekas"
+  | "sga"
   | "cabang"
   | "laporan"
   | "branches"
@@ -31,6 +32,7 @@ const iconByKey = {
   inventori: Warehouse,
   penjualan: ShoppingCart,
   barangbekas: Archive,
+  sga: Package,
   cabang: Building2,
   laporan: BarChart3,
   branches: Building2,
@@ -100,6 +102,8 @@ export function Sidebar({
                         ? stats.saleable
                         : item.key === "barangbekas"
                           ? stats.usedGoods.total
+                          : item.key === "sga"
+                            ? stats.sga.total
                           : undefined
                   }
                   onClick={() => onNavigate(item.key as PageKey)}

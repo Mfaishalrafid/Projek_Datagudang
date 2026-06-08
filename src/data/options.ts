@@ -4,6 +4,8 @@ import type {
   Condition,
   SaleStatus,
   Role,
+  SgaEligibilityStatus,
+  SgaTransactionStatus,
   UsedGoodsCategory,
   UsedGoodsCondition,
   UsedGoodsUnit,
@@ -14,6 +16,7 @@ import type {
 export const branchSeeds = [
   { name: "SPI RANGKASBITUNG", code: "SPI-RKS", regional: "Banten", city: "Rangkasbitung" },
   { name: "IGR CIPUTAT", code: "IGR-CPT", regional: "Jabodetabek", city: "Ciputat" },
+  { name: "IGR BANDUNG KOTA", code: "IGR-BDK", regional: "Jawa Barat", city: "Bandung" },
   { name: "IGR CIKOKOL", code: "IGR-CKL", regional: "Banten", city: "Tangerang" },
   { name: "IGRSMG", code: "IGR-SMG", regional: "Jawa Tengah", city: "Semarang" },
   { name: "Sirclo", code: "SIRCLO", regional: "Jabodetabek", city: "Tangerang" },
@@ -143,6 +146,17 @@ export const usedGoodsUnitByLabel: Record<string, UsedGoodsUnit> = {
   dus: "DUS"
 };
 
+export const sgaEligibilityStatusLabels: Record<SgaEligibilityStatus, string> = {
+  LAYAK_JUAL: "LAYAK JUAL",
+  TIDAK_LAYAK: "TIDAK LAYAK"
+};
+
+export const sgaTransactionStatusLabels: Record<SgaTransactionStatus, string> = {
+  TERSEDIA: "Tersedia",
+  DALAM_ORDER: "Dalam Order",
+  TERJUAL: "Terjual"
+};
+
 export const categoryOptions = Object.entries(categoryLabels).map(([value, label]) => ({
   value: value as Category,
   label
@@ -176,6 +190,16 @@ export const usedGoodsCategoryOptions = Object.entries(usedGoodsCategoryLabels).
 
 export const usedGoodsUnitOptions = Object.entries(usedGoodsUnitLabels).map(([value, label]) => ({
   value: value as UsedGoodsUnit,
+  label
+}));
+
+export const sgaEligibilityStatusOptions = Object.entries(sgaEligibilityStatusLabels).map(([value, label]) => ({
+  value: value as SgaEligibilityStatus,
+  label
+}));
+
+export const sgaTransactionStatusOptions = Object.entries(sgaTransactionStatusLabels).map(([value, label]) => ({
+  value: value as SgaTransactionStatus,
   label
 }));
 

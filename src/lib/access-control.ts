@@ -55,13 +55,17 @@ export function canCreateOrder(user: Pick<SessionUser, "role">) {
   return canAccessSales(user);
 }
 
+export function canAccessSga(user: Pick<SessionUser, "role">) {
+  return isCentralRole(user.role);
+}
+
 export function assertBranchUserHasBranch(user: Pick<SessionUser, "role" | "branchId">) {
   if (isBranchRole(user.role) && !user.branchId) {
     throw new Error("User cabang tidak memiliki branchId.");
   }
 }
 
-export function applyBranchScope<T extends Prisma.SparepartWhereInput | Prisma.UsedGoodsWhereInput>(
+export function applyBranchScope<T extends Prisma.SparepartWhereInput | Prisma.UsedGoodsWhereInput | Prisma.SgaItemWhereInput>(
   user: Pick<SessionUser, "role" | "branchId">,
   where: T
 ): T {
@@ -106,6 +110,7 @@ export function getSidebarMenu(user: Pick<SessionUser, "role">): SidebarMenuItem
       { key: "dashboard", label: "Dashboard Pusat", section: "main" },
       { key: "pendataan", label: "Pendataan Sparepart", section: "main" },
       { key: "barangbekas", label: "Pendataan Barang Bekas", section: "main" },
+      { key: "sga", label: "Pendataan SGA", section: "main" },
       { key: "inventori", label: "Inventori Semua Cabang", section: "main" },
       { key: "penjualan", label: "Layak Jual", section: "main" },
       { key: "cabang", label: "Data per Cabang", section: "reference" },

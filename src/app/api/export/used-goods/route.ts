@@ -1,4 +1,4 @@
-import { buildUsedGoodsCsv } from "@/lib/csv";
+import { buildUsedGoodsCsv, csvDownloadResponse } from "@/lib/csv";
 import { applyBranchScope, canExportData } from "@/lib/access-control";
 import { getSessionUser } from "@/lib/auth";
 import { toUsedGoodsDTO } from "@/lib/mappers";
@@ -21,10 +21,5 @@ export async function GET() {
 
   const csv = buildUsedGoodsCsv(items.map(toUsedGoodsDTO));
 
-  return new Response(`\uFEFF${csv}`, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="BARKAS+_Barang_Bekas_2026.csv"'
-    }
-  });
+  return csvDownloadResponse(csv, "BARKAS+_Barang_Bekas_2026.csv");
 }

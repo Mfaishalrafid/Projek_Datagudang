@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeTlsNumber } from "@/lib/sga";
 
 export const categorySchema = z.enum([
   "BAN",
@@ -29,6 +30,8 @@ export const usedGoodsCategorySchema = z.enum([
   "LAINNYA"
 ]);
 export const usedGoodsUnitSchema = z.enum(["PCS", "KG", "LEMBAR", "IKAT", "KARUNG", "UNIT", "SET", "ROLL", "DUS"]);
+export const sgaEligibilityStatusSchema = z.enum(["LAYAK_JUAL", "TIDAK_LAYAK"]);
+export const sgaTransactionStatusSchema = z.enum(["TERSEDIA", "DALAM_ORDER", "TERJUAL"]);
 
 const optionalDateInput = z
   .string()
@@ -185,6 +188,45 @@ export const usedGoodsFiltersSchema = z
   })
   .optional();
 
+export const sgaInputSchema = z.object({
+  inputDate: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .transform((value) => value || new Date().toISOString().slice(0, 10)),
+  tlsNumber: z.string().trim().min(1, "Nomor TLS wajib diisi").transform(normalizeTlsNumber),
+  branchId: z.string().trim().min(1, "Cabang wajib dipilih"),
+  itemName: z.string().trim().min(1, "Nama barang wajib diisi"),
+  quantity: z.coerce.number().int("Jumlah wajib angka bulat").positive("Jumlah wajib lebih dari 0"),
+  picName: z.string().trim().min(1, "PIC Input wajib diisi"),
+  eligibilityStatus: sgaEligibilityStatusSchema,
+  note: z.string().trim().optional().nullable()
+});
+
+export const sgaUpdateSchema = sgaInputSchema.partial().extend({
+  id: z.string().trim().min(1)
+});
+
+export const sgaFiltersSchema = z
+  .object({
+    query: z.string().trim().optional(),
+    eligibilityStatus: sgaEligibilityStatusSchema.optional(),
+    transactionStatus: sgaTransactionStatusSchema.optional(),
+    branchId: z.string().trim().optional(),
+    tlsNumber: z.string().trim().optional().transform((value) => (value ? normalizeTlsNumber(value) : value))
+  })
+  .optional();
+
+export const sgaSaleOrderInputSchema = z.object({
+  sgaItemId: z.string().trim().min(1, "SGA wajib dipilih"),
+  buyerName: z.string().trim().min(1, "Nama pembeli wajib diisi"),
+  buyerType: z.string().trim().optional().nullable(),
+  salePrice: z.coerce.number().positive("Harga jual wajib lebih dari 0"),
+  saleDate: z.string().trim().min(1, "Tanggal penjualan wajib diisi"),
+  note: z.string().trim().optional().nullable()
+});
+
 export type SparepartInput = z.infer<typeof sparepartInputSchema>;
 export type SparepartUpdateInput = z.infer<typeof sparepartUpdateSchema>;
 export type SparepartFilters = z.infer<typeof sparepartFiltersSchema>;
@@ -199,3 +241,7 @@ export type PasswordResetInput = z.infer<typeof passwordResetSchema>;
 export type UsedGoodsInput = z.infer<typeof usedGoodsInputSchema>;
 export type UsedGoodsUpdateInput = z.infer<typeof usedGoodsUpdateSchema>;
 export type UsedGoodsFilters = z.infer<typeof usedGoodsFiltersSchema>;
+export type SgaInput = z.infer<typeof sgaInputSchema>;
+export type SgaUpdateInput = z.infer<typeof sgaUpdateSchema>;
+export type SgaFilters = z.infer<typeof sgaFiltersSchema>;
+export type SgaSaleOrderInput = z.infer<typeof sgaSaleOrderInputSchema>;

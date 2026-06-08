@@ -1,8 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { toBranchDTO, toSaleOrderDTO, toSparepartDTO, toUsedGoodsDTO, toUsedGoodsSaleOrderDTO, toUserDTO } from "@/lib/mappers";
-import type { DashboardStats, InitialData, UsedGoodsStats } from "@/lib/types";
+import { toBranchDTO, toSaleOrderDTO, toSgaItemDTO, toSgaSaleOrderDTO, toSparepartDTO, toUsedGoodsDTO, toUsedGoodsSaleOrderDTO, toUserDTO } from "@/lib/mappers";
+import type { DashboardStats, InitialData, SgaStats, UsedGoodsStats } from "@/lib/types";
 import {
   branchInputSchema,
   branchUpdateSchema,
@@ -10,6 +10,10 @@ import {
   passwordResetSchema,
   saleOrderInputSchema,
   saleStatusSchema,
+  sgaFiltersSchema,
+  sgaInputSchema,
+  sgaSaleOrderInputSchema,
+  sgaUpdateSchema,
   sparepartFiltersSchema,
   sparepartInputSchema,
   sparepartUpdateSchema,
@@ -23,6 +27,10 @@ import {
   type BranchUpdateInput,
   type PasswordResetInput,
   type SaleOrderInput,
+  type SgaFilters,
+  type SgaInput,
+  type SgaSaleOrderInput,
+  type SgaUpdateInput,
   type SparepartFilters,
   type SparepartInput,
   type SparepartUpdateInput,
@@ -34,10 +42,13 @@ import {
   type UsedGoodsSaleOrderInput
 } from "@/lib/validations";
 import { usedGoodsCategoryLabels, vehicleTypeByCode } from "@/data/options";
-import { buildUsedGoodsCsv } from "@/lib/csv";
+import { buildSgaCsv, buildUsedGoodsCsv } from "@/lib/csv";
+import { calculateDashboardStatsFromData } from "@/lib/dashboard-stats";
+import { buildUsedGoodsSaleIndex, getUsedGoodsSaleAvailability } from "@/lib/sale-availability";
 import { clearSessionCookie, requireActionUser, setSessionCookie, toSessionUser } from "@/lib/auth";
 import {
   applyBranchScope,
+  canAccessSga,
   canAssignRole,
   canCreateOrder,
   canDeleteOperationalData,
@@ -48,6 +59,7 @@ import {
   resolveWriteBranchId,
   type SessionUser
 } from "@/lib/access-control";
+import { normalizeTlsNumber } from "@/lib/sga";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
@@ -76,6 +88,28 @@ const usedGoodsSaleOrderInclude = {
     }
   }
 } satisfies Prisma.UsedGoodsSaleOrderInclude;
+
+const sgaInclude = {
+  branch: true
+} satisfies Prisma.SgaItemInclude;
+
+const sgaSaleOrderInclude = {
+  sgaItem: {
+    include: {
+      branch: true
+    }
+  }
+} satisfies Prisma.SgaSaleOrderInclude;
+
+const emptySgaStats: SgaStats = {
+  total: 0,
+  totalQuantity: 0,
+  saleable: 0,
+  notSaleable: 0,
+  inOrder: 0,
+  sold: 0,
+  activeBranches: 0
+};
 
 function toDate(value: string | null | undefined) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
@@ -123,6 +157,20 @@ async function assertCanAccessUsedGoods(user: SessionUser, id: string) {
     throw new Error("Anda tidak memiliki akses ke data cabang lain.");
   }
 
+  return item;
+}
+
+async function assertCanAccessSgaItem(user: SessionUser, id: string) {
+  if (!canAccessSga(user)) {
+    throw new Error("Role Anda tidak dapat mengakses SGA.");
+  }
+
+  const item = await prisma.sgaItem.findUnique({
+    where: { id },
+    include: sgaInclude
+  });
+
+  if (!item) throw new Error("Data SGA tidak ditemukan.");
   return item;
 }
 
@@ -201,6 +249,33 @@ function buildUsedGoodsWhere(filters: UsedGoodsFilters): Prisma.UsedGoodsWhereIn
   }
 
   return where;
+}
+
+function buildSgaWhere(filters: SgaFilters): Prisma.SgaItemWhereInput {
+  const parsed = sgaFiltersSchema.parse(filters) || {};
+  const where: Prisma.SgaItemWhereInput = {};
+
+  if (parsed.eligibilityStatus) where.eligibilityStatus = parsed.eligibilityStatus;
+  if (parsed.transactionStatus) where.transactionStatus = parsed.transactionStatus;
+  if (parsed.branchId) where.branchId = parsed.branchId;
+  if (parsed.tlsNumber) where.tlsNumber = { contains: parsed.tlsNumber, mode: "insensitive" };
+
+  if (parsed.query) {
+    where.OR = [
+      { tlsNumber: { contains: parsed.query, mode: "insensitive" } },
+      { itemName: { contains: parsed.query, mode: "insensitive" } },
+      { picName: { contains: parsed.query, mode: "insensitive" } },
+      { branch: { is: { name: { contains: parsed.query, mode: "insensitive" } } } }
+    ];
+  }
+
+  return where;
+}
+
+function assertSgaCentralAccess(user: SessionUser) {
+  if (!canAccessSga(user)) {
+    throw new Error("Role Anda tidak dapat mengakses SGA.");
+  }
 }
 
 export async function loginAction(formData: FormData) {
@@ -301,6 +376,21 @@ export async function listUsedGoodsSaleOrders(actor?: SessionUser) {
   return orders.map(toUsedGoodsSaleOrderDTO);
 }
 
+export async function listSgaSaleOrders(actor?: SessionUser) {
+  noStore();
+  const user = await getActor(actor);
+  if (!canAccessSga(user)) {
+    return [];
+  }
+
+  const orders = await prisma.sgaSaleOrder.findMany({
+    include: sgaSaleOrderInclude,
+    orderBy: [{ createdAt: "desc" }]
+  });
+
+  return orders.map(toSgaSaleOrderDTO);
+}
+
 export async function listUsedGoods(filters?: UsedGoodsFilters, actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
@@ -311,6 +401,26 @@ export async function listUsedGoods(filters?: UsedGoodsFilters, actor?: SessionU
   });
 
   return items.map(toUsedGoodsDTO);
+}
+
+export async function listSgaItems(filters?: SgaFilters, actor?: SessionUser) {
+  noStore();
+  const user = await getActor(actor);
+  assertSgaCentralAccess(user);
+  const items = await prisma.sgaItem.findMany({
+    where: buildSgaWhere(filters),
+    include: sgaInclude,
+    orderBy: [{ inputDate: "desc" }, { createdAt: "desc" }, { tlsNumber: "asc" }]
+  });
+
+  return items.map(toSgaItemDTO);
+}
+
+export async function listSaleableSgaItems(actor?: SessionUser) {
+  noStore();
+  const user = await getActor(actor);
+  assertSgaCentralAccess(user);
+  return listSgaItems({ eligibilityStatus: "LAYAK_JUAL" }, user);
 }
 
 export async function getUsedGoodsStats(actor?: SessionUser): Promise<UsedGoodsStats> {
@@ -345,11 +455,39 @@ export async function getUsedGoodsStats(actor?: SessionUser): Promise<UsedGoodsS
   };
 }
 
+export async function getSgaStats(actor?: SessionUser): Promise<SgaStats> {
+  noStore();
+  const user = await getActor(actor);
+  assertSgaCentralAccess(user);
+  const [total, saleable, notSaleable, inOrder, sold, items, branches] = await Promise.all([
+    prisma.sgaItem.count(),
+    prisma.sgaItem.count({ where: { eligibilityStatus: "LAYAK_JUAL" } }),
+    prisma.sgaItem.count({ where: { eligibilityStatus: "TIDAK_LAYAK" } }),
+    prisma.sgaItem.count({ where: { transactionStatus: "DALAM_ORDER" } }),
+    prisma.sgaItem.count({ where: { transactionStatus: "TERJUAL" } }),
+    prisma.sgaItem.findMany({ select: { quantity: true } }),
+    prisma.sgaItem.findMany({
+      distinct: ["branchId"],
+      select: { branchId: true }
+    })
+  ]);
+
+  return {
+    total,
+    totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+    saleable,
+    notSaleable,
+    inOrder,
+    sold,
+    activeBranches: branches.length
+  };
+}
+
 export async function getDashboardStats(actor?: SessionUser): Promise<DashboardStats> {
   noStore();
   const user = await getActor(actor);
   const where = applyBranchScope(user, {} satisfies Prisma.SparepartWhereInput);
-  const [total, saleable, damaged, activeBranches, plates, pjpps, usedGoods] = await Promise.all([
+  const [total, saleable, damaged, activeBranches, plates, pjpps, usedGoods, sga] = await Promise.all([
     prisma.sparepart.count({ where }),
     prisma.sparepart.count({ where: { ...where, condition: "LAYAK_JUAL" } }),
     prisma.sparepart.count({ where: { ...where, condition: "RUSAK" } }),
@@ -368,7 +506,8 @@ export async function getDashboardStats(actor?: SessionUser): Promise<DashboardS
       distinct: ["pjpp"],
       select: { pjpp: true }
     }),
-    getUsedGoodsStats(user)
+    getUsedGoodsStats(user),
+    canAccessSga(user) ? getSgaStats(user) : Promise.resolve(emptySgaStats)
   ]);
 
   return {
@@ -378,7 +517,8 @@ export async function getDashboardStats(actor?: SessionUser): Promise<DashboardS
     activeBranches: activeBranches.length,
     uniquePlates: plates.length,
     uniquePjpp: pjpps.length,
-    usedGoods
+    usedGoods,
+    sga
   };
 }
 
@@ -399,15 +539,18 @@ export async function listUsers(actor?: SessionUser) {
 export async function getReportData(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  const [branches, spareparts, saleOrders, usedGoodsSaleOrders, usedGoods, users, stats] = await Promise.all([
+  const canUseSga = canAccessSga(user);
+  const [branches, spareparts, saleOrders, usedGoodsSaleOrders, sgaSaleOrders, usedGoods, sgaItems, users] = await Promise.all([
     listBranches(user),
     listSpareparts(undefined, user),
     listSaleOrders(user),
     listUsedGoodsSaleOrders(user),
+    canUseSga ? listSgaSaleOrders(user) : Promise.resolve([]),
     listUsedGoods(undefined, user),
-    listUsers(user),
-    getDashboardStats(user)
+    canUseSga ? listSgaItems(undefined, user) : Promise.resolve([]),
+    listUsers(user)
   ]);
+  const stats = calculateDashboardStatsFromData(spareparts, usedGoods, sgaItems);
 
   return {
     currentUser: user,
@@ -415,7 +558,9 @@ export async function getReportData(actor?: SessionUser) {
     spareparts,
     saleOrders,
     usedGoodsSaleOrders,
+    sgaSaleOrders,
     usedGoods,
+    sgaItems,
     users,
     stats
   } satisfies InitialData;
@@ -425,6 +570,14 @@ export async function getUsedGoodsReportData(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
   const [items, stats] = await Promise.all([listUsedGoods(undefined, user), getUsedGoodsStats(user)]);
+  return { items, stats };
+}
+
+export async function getSgaReportData(actor?: SessionUser) {
+  noStore();
+  const user = await getActor(actor);
+  assertSgaCentralAccess(user);
+  const [items, stats] = await Promise.all([listSgaItems(undefined, user), getSgaStats(user)]);
   return { items, stats };
 }
 
@@ -623,6 +776,105 @@ export async function exportUsedGoodsCsv(filters?: UsedGoodsFilters) {
   return buildUsedGoodsCsv(items);
 }
 
+export async function createSgaItem(data: SgaInput) {
+  const user = await getActor();
+  assertSgaCentralAccess(user);
+  const parsed = sgaInputSchema.parse(data);
+  const { branchId } = await resolveActiveBranchForWrite(user, parsed.branchId);
+
+  const existing = await prisma.sgaItem.findUnique({
+    where: { tlsNumber: parsed.tlsNumber }
+  });
+  if (existing) {
+    throw new Error("Nomor TLS sudah terdata. Silakan gunakan Nomor TLS lain.");
+  }
+
+  const created = await prisma.sgaItem.create({
+    data: {
+      tlsNumber: parsed.tlsNumber,
+      branchId,
+      inputDate: toDate(parsed.inputDate) || new Date(),
+      itemName: parsed.itemName,
+      quantity: parsed.quantity,
+      picName: parsed.picName,
+      eligibilityStatus: parsed.eligibilityStatus,
+      transactionStatus: "TERSEDIA",
+      note: parsed.note || null,
+      createdById: user.id
+    },
+    include: sgaInclude
+  });
+
+  revalidatePath("/");
+  return toSgaItemDTO(created);
+}
+
+export async function updateSgaItem(id: string, data: SgaUpdateInput) {
+  const user = await getActor();
+  const existing = await assertCanAccessSgaItem(user, id);
+  if (existing.transactionStatus !== "TERSEDIA") {
+    throw new Error("Data SGA sudah dalam order atau terjual dan tidak dapat diedit.");
+  }
+
+  const parsed = sgaUpdateSchema.parse({ ...data, id });
+  const normalizedTls = parsed.tlsNumber ? normalizeTlsNumber(parsed.tlsNumber) : undefined;
+  if (normalizedTls && normalizedTls !== existing.tlsNumber) {
+    const duplicate = await prisma.sgaItem.findUnique({ where: { tlsNumber: normalizedTls } });
+    if (duplicate) {
+      throw new Error("Nomor TLS sudah terdata. Silakan gunakan Nomor TLS lain.");
+    }
+  }
+  const branchInfo = parsed.branchId ? await resolveActiveBranchForWrite(user, parsed.branchId) : null;
+
+  const updated = await prisma.sgaItem.update({
+    where: { id },
+    data: {
+      tlsNumber: normalizedTls,
+      branch: branchInfo ? { connect: { id: branchInfo.branchId } } : undefined,
+      inputDate: parsed.inputDate === undefined ? undefined : toDate(parsed.inputDate) || undefined,
+      itemName: parsed.itemName,
+      quantity: parsed.quantity,
+      picName: parsed.picName,
+      eligibilityStatus: parsed.eligibilityStatus,
+      note: parsed.note === undefined ? undefined : parsed.note || null
+    },
+    include: sgaInclude
+  });
+
+  revalidatePath("/");
+  return toSgaItemDTO(updated);
+}
+
+export async function deleteSgaItem(id: string) {
+  const user = await getActor();
+  assertSgaCentralAccess(user);
+  await assertCanAccessSgaItem(user, id);
+  const existingOrder = await prisma.sgaSaleOrder.findFirst({
+    where: {
+      sgaItemId: id,
+      status: { in: ["APPROVAL", "TERJUAL"] }
+    }
+  });
+  if (existingOrder) {
+    throw new Error("Data SGA sudah memiliki transaksi dan tidak dapat dihapus.");
+  }
+
+  await prisma.sgaItem.delete({ where: { id } });
+
+  revalidatePath("/");
+  return { id };
+}
+
+export async function exportSgaCsv(filters?: SgaFilters) {
+  const user = await getActor();
+  if (!canExportData(user)) {
+    throw new Error("Role Anda tidak dapat melakukan export data.");
+  }
+  assertSgaCentralAccess(user);
+  const items = await listSgaItems(filters, user);
+  return buildSgaCsv(items);
+}
+
 export async function createSaleOrder(data: SaleOrderInput) {
   const user = await getActor();
   if (!canCreateOrder(user)) {
@@ -688,19 +940,20 @@ export async function createUsedGoodsSaleOrder(data: UsedGoodsSaleOrderInput) {
   }
 
   const existingOrders = await getUsedGoodsActiveSaleOrders(parsed.usedGoodsId);
-  const qtyDalamOrder = existingOrders
-    .filter((order) => order.status === "APPROVAL")
-    .reduce((sum, order) => sum + Number(order.qty), 0);
-  const qtyTerjual = existingOrders
-    .filter((order) => order.status === "TERJUAL")
-    .reduce((sum, order) => sum + Number(order.qty), 0);
-  const qtyTersedia = Math.max(0, Number(item.qty) - qtyDalamOrder - qtyTerjual);
+  const saleIndex = buildUsedGoodsSaleIndex(
+    existingOrders.map((order) => ({
+      usedGoodsId: parsed.usedGoodsId,
+      qty: Number(order.qty),
+      status: order.status
+    }))
+  );
+  const availability = getUsedGoodsSaleAvailability({ id: parsed.usedGoodsId, qty: Number(item.qty) }, saleIndex);
 
-  if (qtyDalamOrder > 0) {
+  if (availability.qtyDalamOrder > 0) {
     throw new Error("Barang bekas sedang dalam order.");
   }
 
-  if (parsed.qty > qtyTersedia) {
+  if (parsed.qty > availability.qtyTersedia) {
     throw new Error("Qty dijual tidak boleh melebihi qty tersedia.");
   }
 
@@ -751,6 +1004,77 @@ export async function updateUsedGoodsSaleOrderStatus(id: string, status: unknown
 
   revalidatePath("/");
   return toUsedGoodsSaleOrderDTO(updated);
+}
+
+export async function createSgaSaleOrder(data: SgaSaleOrderInput) {
+  const user = await getActor();
+  assertSgaCentralAccess(user);
+  const parsed = sgaSaleOrderInputSchema.parse(data);
+  const item = await prisma.sgaItem.findUnique({
+    where: { id: parsed.sgaItemId },
+    include: sgaInclude
+  });
+
+  if (!item) {
+    throw new Error("Data SGA tidak ditemukan.");
+  }
+  if (item.eligibilityStatus !== "LAYAK_JUAL") {
+    throw new Error("Order jual hanya dapat dibuat untuk SGA LAYAK JUAL.");
+  }
+  if (item.transactionStatus === "DALAM_ORDER") {
+    throw new Error("SGA sudah dalam order.");
+  }
+  if (item.transactionStatus === "TERJUAL") {
+    throw new Error("SGA sudah terjual.");
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const order = await tx.sgaSaleOrder.create({
+      data: {
+        sgaItemId: parsed.sgaItemId,
+        buyerName: parsed.buyerName,
+        buyerType: parsed.buyerType || null,
+        salePrice: parsed.salePrice,
+        saleDate: toDate(parsed.saleDate) || new Date(),
+        status: "APPROVAL",
+        note: parsed.note || null,
+        createdById: user.id
+      },
+      include: sgaSaleOrderInclude
+    });
+    await tx.sgaItem.update({
+      where: { id: parsed.sgaItemId },
+      data: { transactionStatus: "DALAM_ORDER" }
+    });
+    return order;
+  });
+
+  revalidatePath("/");
+  return toSgaSaleOrderDTO(created);
+}
+
+export async function updateSgaSaleOrderStatus(id: string, status: unknown) {
+  const user = await getActor();
+  assertSgaCentralAccess(user);
+  const parsed = saleStatusSchema.parse(status);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const order = await tx.sgaSaleOrder.update({
+      where: { id },
+      data: { status: parsed },
+      include: sgaSaleOrderInclude
+    });
+    await tx.sgaItem.update({
+      where: { id: order.sgaItemId },
+      data: {
+        transactionStatus: parsed === "TERJUAL" ? "TERJUAL" : parsed === "APPROVAL" ? "DALAM_ORDER" : "TERSEDIA"
+      }
+    });
+    return order;
+  });
+
+  revalidatePath("/");
+  return toSgaSaleOrderDTO(updated);
 }
 
 export async function createBranch(data: BranchInput) {

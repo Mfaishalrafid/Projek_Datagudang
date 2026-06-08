@@ -3,20 +3,25 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BarkasApp } from "@/components/BarkasApp";
-import { branchUser, makeInitialData, spareparts, usedGoods } from "../fixtures";
+import { branchUser, makeInitialData, sgaItems, spareparts, usedGoods } from "../fixtures";
 
 const actionMocks = vi.hoisted(() => ({
   createSaleOrder: vi.fn(),
+  createSgaItem: vi.fn(),
+  createSgaSaleOrder: vi.fn(),
   createUsedGoodsSaleOrder: vi.fn(),
   createBranch: vi.fn(),
   createSparepart: vi.fn(),
   createUser: vi.fn(),
   createUsedGoods: vi.fn(),
   deleteSparepart: vi.fn(),
+  deleteSgaItem: vi.fn(),
   deleteUsedGoods: vi.fn(),
   logoutAction: vi.fn(),
   resetUserPassword: vi.fn(),
   updateSaleOrderStatus: vi.fn(),
+  updateSgaItem: vi.fn(),
+  updateSgaSaleOrderStatus: vi.fn(),
   updateUsedGoodsSaleOrderStatus: vi.fn(),
   updateBranch: vi.fn(),
   updateSparepart: vi.fn(),
@@ -38,6 +43,8 @@ function renderBranchApp() {
         branches: makeInitialData().branches.filter((branch) => branch.id === branchUser.branchId),
         spareparts: [],
         usedGoods: makeInitialData().usedGoods.filter((item) => item.branchId === branchUser.branchId),
+        sgaItems: [],
+        sgaSaleOrders: [],
         saleOrders: [],
         users: [],
         stats: {
@@ -54,6 +61,15 @@ function renderBranchApp() {
             notSaleable: 1,
             totalWeightKg: 1,
             activeBranches: 1
+          },
+          sga: {
+            total: 0,
+            totalQuantity: 0,
+            saleable: 0,
+            notSaleable: 0,
+            inOrder: 0,
+            sold: 0,
+            activeBranches: 0
           }
         }
       })}
@@ -77,6 +93,8 @@ function renderEmployeeBranchApp() {
         branches: makeInitialData().branches.filter((branch) => branch.id === employeeUser.branchId),
         spareparts: [],
         usedGoods: makeInitialData().usedGoods.filter((item) => item.branchId === employeeUser.branchId),
+        sgaItems: [],
+        sgaSaleOrders: [],
         saleOrders: [],
         users: [],
         stats: {
@@ -93,6 +111,15 @@ function renderEmployeeBranchApp() {
             notSaleable: 1,
             totalWeightKg: 1,
             activeBranches: 1
+          },
+          sga: {
+            total: 0,
+            totalQuantity: 0,
+            saleable: 0,
+            notSaleable: 0,
+            inOrder: 0,
+            sold: 0,
+            activeBranches: 0
           }
         }
       })}
@@ -133,6 +160,7 @@ describe("BarkasApp v3 UI", () => {
 
     expect(screen.getByText("Total Sparepart")).toBeInTheDocument();
     expect(content().queryByText("Rekap Barang Bekas")).not.toBeInTheDocument();
+    expect(content().getByRole("button", { name: "SGA" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Barang Bekas" }));
 
     expect(screen.getByText("Total Barang Bekas")).toBeInTheDocument();
@@ -141,6 +169,13 @@ describe("BarkasApp v3 UI", () => {
     expect(screen.getByText("Per Kategori Barang Bekas")).toBeInTheDocument();
     expect(screen.getByText("Per Cabang Barang Bekas")).toBeInTheDocument();
     expect(content().getAllByText("Sirclo").length).toBeGreaterThan(0);
+
+    await user.click(content().getByRole("button", { name: "SGA" }));
+    expect(screen.getByText("Total SGA")).toBeInTheDocument();
+    expect(screen.getByText("Data SGA Terbaru")).toBeInTheDocument();
+    expect(screen.getByText("Meja kantor bekas")).toBeInTheDocument();
+    expect(screen.getByText("Distribusi SGA per Cabang")).toBeInTheDocument();
+    expect(content().queryByText("Rekap Barang Bekas")).not.toBeInTheDocument();
   });
 
   it("opens the input chooser and continues to the used goods modal", async () => {
@@ -173,6 +208,46 @@ describe("BarkasApp v3 UI", () => {
     await user.click(modal.getByRole("button", { name: "Lanjut" }));
 
     expect(activeModal().getByText("Input Sparepart Ex-Service")).toBeInTheDocument();
+  });
+
+  it("opens the SGA modal from the chooser with final v5 fields only", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /^Input Barang$/ }));
+    let modal = activeModal();
+
+    await user.click(modal.getByText("SGA"));
+    await user.click(modal.getByRole("button", { name: "Lanjut" }));
+
+    modal = activeModal();
+    expect(modal.getByText("Input Data SGA")).toBeInTheDocument();
+    expect(modal.getByText("Nomor TLS")).toBeInTheDocument();
+    expect(modal.getByText("Jumlah")).toBeInTheDocument();
+    expect(modal.getByText("PIC Input")).toBeInTheDocument();
+    expect(modal.queryByText("Kode SGA")).not.toBeInTheDocument();
+    expect(modal.queryByText("Satuan")).not.toBeInTheDocument();
+  });
+
+  it("shows duplicate TLS error toast when SGA create is rejected", async () => {
+    const user = userEvent.setup();
+    actionMocks.createSgaItem.mockRejectedValueOnce(new Error("Nomor TLS sudah terdata. Silakan gunakan Nomor TLS lain."));
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /^Input Barang$/ }));
+    let modal = activeModal();
+    await user.click(modal.getByText("SGA"));
+    await user.click(modal.getByRole("button", { name: "Lanjut" }));
+
+    modal = activeModal();
+    await user.type(modal.getByPlaceholderText("TLS-2026-001"), "tls-2026-001");
+    await user.selectOptions(modal.getAllByRole("combobox")[0], "branch-sirclo");
+    await user.type(modal.getByPlaceholderText("Contoh: Meja kantor bekas"), "Meja kantor bekas");
+    await user.type(modal.getByPlaceholderText("Nama PIC"), "Ardi");
+    await user.click(modal.getByRole("button", { name: "Simpan SGA" }));
+
+    await waitFor(() => expect(actionMocks.createSgaItem).toHaveBeenCalled());
+    expect(await screen.findByText("Nomor TLS sudah terdata. Silakan gunakan Nomor TLS lain.")).toBeInTheDocument();
   });
 
   it("filters and searches the used goods table", async () => {
@@ -208,6 +283,34 @@ describe("BarkasApp v3 UI", () => {
     expect(page.queryByText("Kardus Bekas")).not.toBeInTheDocument();
   });
 
+  it("shows and filters the SGA table", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /Pendataan SGA/ }));
+    let page = content();
+    expect(page.getByText("Pendataan SGA")).toBeInTheDocument();
+    expect(page.getByText("Meja kantor bekas")).toBeInTheDocument();
+    expect(page.getByText("Kursi tunggu bekas")).toBeInTheDocument();
+
+    await user.selectOptions(page.getAllByRole("combobox")[0], "TIDAK_LAYAK");
+    page = content();
+    expect(page.getByText("Rak arsip rusak")).toBeInTheDocument();
+    expect(page.queryByText("Meja kantor bekas")).not.toBeInTheDocument();
+
+    await user.selectOptions(page.getAllByRole("combobox")[0], "");
+    await user.selectOptions(page.getAllByRole("combobox")[1], "DALAM_ORDER");
+    page = content();
+    expect(page.getByText("Kursi tunggu bekas")).toBeInTheDocument();
+    expect(page.getAllByText("Dalam Order").length).toBeGreaterThan(0);
+
+    await user.selectOptions(page.getAllByRole("combobox")[1], "");
+    await user.type(page.getByPlaceholderText("Cari Nomor TLS..."), "003");
+    page = content();
+    expect(page.getByText("TLS-2026-003")).toBeInTheDocument();
+    expect(page.queryByText("TLS-2026-001")).not.toBeInTheDocument();
+  });
+
   it("opens used goods detail and deletes the selected row", async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -241,6 +344,24 @@ describe("BarkasApp v3 UI", () => {
     expect(page.queryByRole("button", { name: "Jual" })).not.toBeInTheDocument();
   });
 
+  it("shows SGA sale action only for saleable available items and locks in-order rows", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: /Pendataan SGA/ }));
+    let page = content();
+
+    expect(page.getByText("Meja kantor bekas")).toBeInTheDocument();
+    expect(page.getByRole("button", { name: "Jual" })).toBeInTheDocument();
+    expect(page.getByText("Kursi tunggu bekas")).toBeInTheDocument();
+    expect(page.getAllByText("Dalam Order").length).toBeGreaterThan(0);
+
+    await user.selectOptions(page.getAllByRole("combobox")[0], "TIDAK_LAYAK");
+    page = content();
+    expect(page.getByText("Rak arsip rusak")).toBeInTheDocument();
+    expect(page.queryByRole("button", { name: "Jual" })).not.toBeInTheDocument();
+  });
+
   it("hides used goods sale action for cabang roles", async () => {
     const user = userEvent.setup();
     renderBranchApp();
@@ -265,6 +386,13 @@ describe("BarkasApp v3 UI", () => {
     expect(page.getByText("Ringkasan Satuan Barang Bekas")).toBeInTheDocument();
     expect(page.getByText("Kardus & Karton")).toBeInTheDocument();
     expect(page.getByText("pcs")).toBeInTheDocument();
+
+    await user.click(page.getByRole("button", { name: "SGA" }));
+    page = content();
+    expect(page.getByText("Rekap SGA per Cabang")).toBeInTheDocument();
+    expect(page.getByText("Rekap SGA per PIC Input")).toBeInTheDocument();
+    expect(page.getByText("Tabel Semua SGA")).toBeInTheDocument();
+    expect(page.getByText("Meja kantor bekas")).toBeInTheDocument();
   });
 
   it("shows used goods branch summaries without crashing on an empty branch", async () => {
@@ -280,12 +408,18 @@ describe("BarkasApp v3 UI", () => {
     expect(page.getByText("Sirclo")).toBeInTheDocument();
     expect(page.getByText("GW Cargo TGR")).toBeInTheDocument();
     expect(page.queryByText("Cabang Kosong")).not.toBeInTheDocument();
+
+    await user.click(page.getByRole("button", { name: "SGA" }));
+    page = content();
+    expect(page.getByText("Meja kantor bekas")).toBeInTheDocument();
+    expect(page.getByText("Kursi tunggu bekas")).toBeInTheDocument();
+    expect(page.queryByText("Cabang Kosong")).not.toBeInTheDocument();
   });
 
   it("routes global search to sparepart or used goods pages and handles empty results", async () => {
     const user = userEvent.setup();
     renderApp();
-    const search = screen.getByPlaceholderText("Cari sparepart / barang bekas...");
+    const search = screen.getByPlaceholderText(/Cari sparepart \/ barang bekas/);
 
     await user.type(search, "R3/RJPP");
     await user.keyboard("{Enter}");
@@ -299,6 +433,12 @@ describe("BarkasApp v3 UI", () => {
     expect(content().getByText("Paku bekas")).toBeInTheDocument();
 
     await user.clear(search);
+    await user.type(search, "TLS-2026-001");
+    await user.keyboard("{Enter}");
+    expect(content().getByText("Pendataan SGA")).toBeInTheDocument();
+    expect(content().getByText("Meja kantor bekas")).toBeInTheDocument();
+
+    await user.clear(search);
     await user.type(search, "data-yang-tidak-ada");
     await user.keyboard("{Enter}");
     expect(content().getByText("Data tidak ditemukan")).toBeInTheDocument();
@@ -309,6 +449,7 @@ describe("BarkasApp v3 UI", () => {
 
     expect(screen.getByRole("button", { name: /Layak Jual/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Pendataan Barang Bekas/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pendataan SGA/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Manajemen Cabang/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Manajemen User/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Input Barang$/ })).toBeInTheDocument();
@@ -357,6 +498,7 @@ describe("BarkasApp v3 UI", () => {
     expect(sidebarSections()).not.toContain("Barang Bekas");
     expect(screen.getByRole("button", { name: /Pendataan Barang Bekas/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Input Barang Baru/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pendataan SGA/ })).not.toBeInTheDocument();
   });
 
   it("places Pendataan Barang Bekas in main sidebar for KARYAWAN_CABANG", () => {
@@ -387,6 +529,15 @@ describe("BarkasApp v3 UI", () => {
     expect(page.getByText("Rekap Barang Bekas per Cabang")).toBeInTheDocument();
     expect(page.getByText("Tabel Lengkap - Semua 3 Data Barang Bekas")).toBeInTheDocument();
     expect(page.getByText("Kardus Bekas")).toBeInTheDocument();
+
+    await user.click(page.getByRole("button", { name: "SGA" }));
+    page = content();
+    expect(page.getByText("Total SGA")).toBeInTheDocument();
+    expect(page.getByText("Rekap SGA per Cabang")).toBeInTheDocument();
+    expect(page.getByText("Rekap SGA per PIC Input")).toBeInTheDocument();
+    expect(page.getByText("Tren Input SGA per Bulan")).toBeInTheDocument();
+    expect(page.getByText("Tabel Lengkap - Semua 3 Data SGA")).toBeInTheDocument();
+    expect(page.getByText("Meja kantor bekas")).toBeInTheDocument();
   });
 
   it("toggles add user password visibility without submitting the form", async () => {
@@ -425,6 +576,14 @@ describe("BarkasApp v3 UI", () => {
     expect(page.getByText("Kardus Bekas")).toBeInTheDocument();
     expect(page.getByText("Paku bekas")).toBeInTheDocument();
     expect(page.queryByText("Plastik Sortir")).not.toBeInTheDocument();
+
+    await user.click(page.getByRole("button", { name: "SGA" }));
+    page = content();
+    expect(page.getAllByText("SGA Layak Jual").length).toBeGreaterThan(0);
+    expect(page.getAllByText("Meja kantor bekas").length).toBeGreaterThan(0);
+    expect(page.getAllByText("Kursi tunggu bekas").length).toBeGreaterThan(0);
+    expect(page.getAllByText("Dalam Order").length).toBeGreaterThan(0);
+    expect(page.queryByText("Rak arsip rusak")).not.toBeInTheDocument();
   });
 
   it("syncs pendataan sparepart sale action with order status", async () => {

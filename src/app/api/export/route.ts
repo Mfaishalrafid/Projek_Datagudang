@@ -1,4 +1,4 @@
-import { buildSparepartCsv } from "@/lib/csv";
+import { buildSparepartCsv, csvDownloadResponse } from "@/lib/csv";
 import { applyBranchScope, canExportData } from "@/lib/access-control";
 import { getSessionUser } from "@/lib/auth";
 import { toSparepartDTO } from "@/lib/mappers";
@@ -21,10 +21,5 @@ export async function GET() {
 
   const csv = buildSparepartCsv(spareparts.map(toSparepartDTO));
 
-  return new Response(`\uFEFF${csv}`, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="BARKAS+_Indopaket_2026.csv"'
-    }
-  });
+  return csvDownloadResponse(csv, "BARKAS+_Indopaket_2026.csv");
 }

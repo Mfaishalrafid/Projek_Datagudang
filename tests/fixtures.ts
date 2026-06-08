@@ -1,4 +1,14 @@
-import type { BranchDTO, DashboardStats, InitialData, SaleOrderDTO, SparepartDTO, UsedGoodsDTO, UsedGoodsSaleOrderDTO } from "@/lib/types";
+import type {
+  BranchDTO,
+  DashboardStats,
+  InitialData,
+  SaleOrderDTO,
+  SgaItemDTO,
+  SgaSaleOrderDTO,
+  SparepartDTO,
+  UsedGoodsDTO,
+  UsedGoodsSaleOrderDTO
+} from "@/lib/types";
 
 export const branches: BranchDTO[] = [
   {
@@ -171,6 +181,87 @@ export const usedGoods: UsedGoodsDTO[] = [
 export const saleOrders: SaleOrderDTO[] = [];
 export const usedGoodsSaleOrders: UsedGoodsSaleOrderDTO[] = [];
 
+export const sgaItems: SgaItemDTO[] = [
+  {
+    id: "sga-meja",
+    tlsNumber: "TLS-2026-001",
+    branchId: "branch-sirclo",
+    branchName: "Sirclo",
+    branchCode: "SIRCLO",
+    inputDate: "2026-05-23T00:00:00.000Z",
+    itemName: "Meja kantor bekas",
+    quantity: 5,
+    picName: "Ardi",
+    eligibilityStatus: "LAYAK_JUAL",
+    eligibilityStatusLabel: "LAYAK JUAL",
+    transactionStatus: "TERSEDIA",
+    transactionStatusLabel: "Tersedia",
+    note: null,
+    createdById: "user-admin-pusat",
+    createdAt: "2026-05-23T00:00:00.000Z",
+    updatedAt: "2026-05-23T00:00:00.000Z"
+  },
+  {
+    id: "sga-kursi",
+    tlsNumber: "TLS-2026-002",
+    branchId: "branch-cargo",
+    branchName: "GW Cargo TGR",
+    branchCode: "GW-TGR",
+    inputDate: "2026-05-22T00:00:00.000Z",
+    itemName: "Kursi tunggu bekas",
+    quantity: 10,
+    picName: "Budi",
+    eligibilityStatus: "LAYAK_JUAL",
+    eligibilityStatusLabel: "LAYAK JUAL",
+    transactionStatus: "DALAM_ORDER",
+    transactionStatusLabel: "Dalam Order",
+    note: "Order berjalan",
+    createdById: "user-admin-pusat",
+    createdAt: "2026-05-22T00:00:00.000Z",
+    updatedAt: "2026-05-22T00:00:00.000Z"
+  },
+  {
+    id: "sga-rak",
+    tlsNumber: "TLS-2026-003",
+    branchId: "branch-spi",
+    branchName: "SPI RANGKASBITUNG",
+    branchCode: "SPI-RKS",
+    inputDate: "2026-05-21T00:00:00.000Z",
+    itemName: "Rak arsip rusak",
+    quantity: 2,
+    picName: "Sari",
+    eligibilityStatus: "TIDAK_LAYAK",
+    eligibilityStatusLabel: "TIDAK LAYAK",
+    transactionStatus: "TERSEDIA",
+    transactionStatusLabel: "Tersedia",
+    note: "Rangka patah",
+    createdById: "user-admin-pusat",
+    createdAt: "2026-05-21T00:00:00.000Z",
+    updatedAt: "2026-05-21T00:00:00.000Z"
+  }
+];
+
+export const sgaSaleOrders: SgaSaleOrderDTO[] = [
+  {
+    id: "sga-order-kursi",
+    sgaItemId: "sga-kursi",
+    tlsNumber: "TLS-2026-002",
+    itemName: "Kursi tunggu bekas",
+    branchName: "GW Cargo TGR",
+    quantity: 10,
+    picName: "Budi",
+    buyerName: "Pembeli SGA",
+    buyerType: null,
+    salePrice: 250000,
+    saleDate: "2026-05-24T00:00:00.000Z",
+    status: "APPROVAL",
+    statusLabel: "Approval",
+    note: null,
+    createdAt: "2026-05-24T00:00:00.000Z",
+    updatedAt: "2026-05-24T00:00:00.000Z"
+  }
+];
+
 export const currentUser = {
   id: "user-admin-pusat",
   name: "Admin Pusat",
@@ -232,6 +323,15 @@ export const stats: DashboardStats = {
     notSaleable: 1,
     totalWeightKg: 6,
     activeBranches: 2
+  },
+  sga: {
+    total: 3,
+    totalQuantity: 17,
+    saleable: 2,
+    notSaleable: 1,
+    inOrder: 1,
+    sold: 0,
+    activeBranches: 3
   }
 };
 
@@ -242,7 +342,9 @@ export function makeInitialData(overrides: Partial<InitialData> = {}): InitialDa
     spareparts,
     saleOrders,
     usedGoodsSaleOrders,
+    sgaSaleOrders,
     usedGoods,
+    sgaItems,
     users,
     stats,
     ...overrides

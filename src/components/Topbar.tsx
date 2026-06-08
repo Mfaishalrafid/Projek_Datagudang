@@ -9,6 +9,7 @@ const pageNames: Record<PageKey, string> = {
   inventori: "Inventori & Stok",
   penjualan: "Layak Jual",
   barangbekas: "Pendataan Barang Bekas",
+  sga: "Pendataan SGA",
   cabang: "Data per Cabang",
   laporan: "Laporan & Analitik",
   branches: "Manajemen Cabang",
@@ -56,7 +57,7 @@ export function Topbar({
         }}
       >
         <Search size={15} />
-        <input placeholder="Cari sparepart / barang bekas..." value={query} onChange={(event) => onQueryChange(event.target.value)} />
+        <input placeholder="Cari sparepart / barang bekas / SGA..." value={query} onChange={(event) => onQueryChange(event.target.value)} />
       </form>
       {canExport ? <button className="btn btn-ghost btn-sm" onClick={onExport} type="button">
         <Download size={14} />

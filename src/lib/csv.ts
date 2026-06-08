@@ -1,4 +1,4 @@
-import type { SparepartDTO, UsedGoodsDTO } from "@/lib/types";
+import type { SgaItemDTO, SparepartDTO, UsedGoodsDTO } from "@/lib/types";
 
 const headers = [
   "No",
@@ -29,6 +29,19 @@ const usedGoodsHeaders = [
   "Kondisi",
   "Lokasi Penyimpanan",
   "PIC",
+  "Keterangan"
+];
+
+const sgaHeaders = [
+  "No",
+  "Tanggal Input",
+  "Nomor TLS",
+  "Cabang",
+  "Nama Barang",
+  "Jumlah",
+  "PIC Input",
+  "Status Kelayakan",
+  "Status Transaksi",
   "Keterangan"
 ];
 
@@ -75,6 +88,32 @@ export function buildUsedGoodsCsv(items: UsedGoodsDTO[]) {
   ]);
 
   return [usedGoodsHeaders, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
+export function buildSgaCsv(items: SgaItemDTO[]) {
+  const rows = items.map((item, index) => [
+    index + 1,
+    item.inputDate.slice(0, 10),
+    item.tlsNumber,
+    item.branchName,
+    item.itemName,
+    item.quantity,
+    item.picName,
+    item.eligibilityStatusLabel,
+    item.transactionStatusLabel,
+    item.note || ""
+  ]);
+
+  return [sgaHeaders, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
+export function csvDownloadResponse(csv: string, filename: string) {
+  return new Response(`\uFEFF${csv}`, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`
+    }
+  });
 }
 
 export function downloadCsv(csv: string, filename: string) {

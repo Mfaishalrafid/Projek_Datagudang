@@ -4,6 +4,8 @@ import type {
   Condition,
   SaleStatus,
   Role,
+  SgaEligibilityStatus,
+  SgaTransactionStatus,
   UsedGoodsCategory,
   UsedGoodsCondition,
   UsedGoodsUnit,
@@ -119,12 +121,61 @@ export type UsedGoodsDTO = {
   updatedAt: string;
 };
 
+export type SgaItemDTO = {
+  id: string;
+  tlsNumber: string;
+  branchId: string;
+  branchName: string;
+  branchCode: string | null;
+  inputDate: string;
+  itemName: string;
+  quantity: number;
+  picName: string;
+  eligibilityStatus: SgaEligibilityStatus;
+  eligibilityStatusLabel: string;
+  transactionStatus: SgaTransactionStatus;
+  transactionStatusLabel: string;
+  note: string | null;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SgaSaleOrderDTO = {
+  id: string;
+  sgaItemId: string;
+  tlsNumber: string;
+  itemName: string;
+  branchName: string;
+  quantity: number;
+  picName: string;
+  buyerName: string;
+  buyerType: string | null;
+  salePrice: number;
+  saleDate: string;
+  status: SaleStatus;
+  statusLabel: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UsedGoodsStats = {
   total: number;
   totalQty: number;
   saleable: number;
   notSaleable: number;
   totalWeightKg: number;
+  activeBranches: number;
+};
+
+export type SgaStats = {
+  total: number;
+  totalQuantity: number;
+  saleable: number;
+  notSaleable: number;
+  inOrder: number;
+  sold: number;
   activeBranches: number;
 };
 
@@ -136,6 +187,7 @@ export type DashboardStats = {
   uniquePlates: number;
   uniquePjpp: number;
   usedGoods: UsedGoodsStats;
+  sga: SgaStats;
 };
 
 export type InitialData = {
@@ -152,7 +204,9 @@ export type InitialData = {
   spareparts: SparepartDTO[];
   saleOrders: SaleOrderDTO[];
   usedGoodsSaleOrders: UsedGoodsSaleOrderDTO[];
+  sgaSaleOrders: SgaSaleOrderDTO[];
   usedGoods: UsedGoodsDTO[];
+  sgaItems: SgaItemDTO[];
   users: UserDTO[];
   stats: DashboardStats;
 };

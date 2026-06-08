@@ -7,6 +7,7 @@ import {
   usedGoodsSeeds
 } from "../src/data/seed-data";
 import { hashPassword } from "../src/lib/password";
+import { normalizeTlsNumber } from "../src/lib/sga";
 
 const prisma = new PrismaClient();
 
@@ -14,19 +15,31 @@ async function main() {
   const branches = new Map<string, string>();
 
   for (const branch of branchSeeds) {
-    const created = await prisma.branch.upsert({
-      where: { name: branch.name },
-      update: {
-        code: branch.code,
-        regional: branch.regional,
-        city: branch.city,
-        isActive: true
-      },
-      create: {
-        ...branch,
-        isActive: true
+    const existing = await prisma.branch.findFirst({
+      where: {
+        OR: [
+          { name: branch.name },
+          ...(branch.code ? [{ code: branch.code }] : [])
+        ]
       }
     });
+    const created = existing
+      ? await prisma.branch.update({
+        where: { id: existing.id },
+        data: {
+          name: branch.name,
+          code: branch.code,
+          regional: branch.regional,
+          city: branch.city,
+          isActive: true
+        }
+      })
+      : await prisma.branch.create({
+        data: {
+          ...branch,
+          isActive: true
+        }
+      });
     branches.set(created.name, created.id);
   }
 
@@ -118,6 +131,74 @@ async function main() {
     });
   }
 
+  const sgaSeeds = [
+    {
+      tlsNumber: "TLS-2026-001",
+      branchName: "IGR CIPUTAT",
+      inputDate: "2026-06-01",
+      itemName: "Meja kantor bekas",
+      quantity: 5,
+      picName: "Ardi",
+      eligibilityStatus: "LAYAK_JUAL" as const,
+      transactionStatus: "TERSEDIA" as const,
+      note: null
+    },
+    {
+      tlsNumber: "TLS-2026-002",
+      branchName: "IGR BANDUNG KOTA",
+      inputDate: "2026-06-02",
+      itemName: "Kursi tunggu bekas",
+      quantity: 10,
+      picName: "Budi",
+      eligibilityStatus: "LAYAK_JUAL" as const,
+      transactionStatus: "TERSEDIA" as const,
+      note: null
+    },
+    {
+      tlsNumber: "TLS-2026-003",
+      branchName: "GW Cargo TGR",
+      inputDate: "2026-06-03",
+      itemName: "Rak arsip rusak",
+      quantity: 2,
+      picName: "Sari",
+      eligibilityStatus: "TIDAK_LAYAK" as const,
+      transactionStatus: "TERSEDIA" as const,
+      note: "Tidak layak dijual"
+    }
+  ];
+
+  for (const item of sgaSeeds) {
+    const branchId = branches.get(item.branchName);
+    if (!branchId) {
+      throw new Error(`Branch not found for SGA seed: ${item.branchName}`);
+    }
+
+    await prisma.sgaItem.upsert({
+      where: { tlsNumber: normalizeTlsNumber(item.tlsNumber) },
+      update: {
+        branchId,
+        inputDate: new Date(`${item.inputDate}T00:00:00.000Z`),
+        itemName: item.itemName,
+        quantity: item.quantity,
+        picName: item.picName,
+        eligibilityStatus: item.eligibilityStatus,
+        transactionStatus: item.transactionStatus,
+        note: item.note
+      },
+      create: {
+        tlsNumber: normalizeTlsNumber(item.tlsNumber),
+        branchId,
+        inputDate: new Date(`${item.inputDate}T00:00:00.000Z`),
+        itemName: item.itemName,
+        quantity: item.quantity,
+        picName: item.picName,
+        eligibilityStatus: item.eligibilityStatus,
+        transactionStatus: item.transactionStatus,
+        note: item.note
+      }
+    });
+  }
+
   const demoBranchId = branches.get("IGR CIPUTAT");
   if (!demoBranchId) {
     throw new Error("Demo branch IGR CIPUTAT not found for user seed.");
@@ -174,15 +255,16 @@ async function main() {
     });
   }
 
-  const [total, layak, rusak, usedGoodsTotal, userTotal] = await Promise.all([
+  const [total, layak, rusak, usedGoodsTotal, sgaTotal, userTotal] = await Promise.all([
     prisma.sparepart.count(),
     prisma.sparepart.count({ where: { condition: "LAYAK_JUAL" } }),
     prisma.sparepart.count({ where: { condition: "RUSAK" } }),
     prisma.usedGoods.count(),
+    prisma.sgaItem.count(),
     prisma.user.count()
   ]);
 
-  console.log(`Seed complete: ${total} sparepart, ${layak} LAYAK JUAL, ${rusak} RUSAK, ${usedGoodsTotal} barang bekas, ${userTotal} users.`);
+  console.log(`Seed complete: ${total} sparepart, ${layak} LAYAK JUAL, ${rusak} RUSAK, ${usedGoodsTotal} barang bekas, ${sgaTotal} SGA, ${userTotal} users.`);
 }
 
 main()

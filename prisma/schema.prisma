@@ -77,6 +77,17 @@ enum UsedGoodsUnit {
   DUS
 }
 
+enum SgaEligibilityStatus {
+  LAYAK_JUAL
+  TIDAK_LAYAK
+}
+
+enum SgaTransactionStatus {
+  TERSEDIA
+  DALAM_ORDER
+  TERJUAL
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN_PUSAT
@@ -98,19 +109,22 @@ model Branch {
   users      User[]
   spareparts Sparepart[]
   usedGoods  UsedGoods[]
+  sgaItems   SgaItem[]
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role
-  branchId     String?
-  branch       Branch?  @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          Role
+  branchId      String?
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sgaItems      SgaItem[]      @relation("SgaItemCreatedBy")
+  sgaSaleOrders SgaSaleOrder[] @relation("SgaSaleOrderCreatedBy")
 
   @@index([role])
   @@index([branchId])
@@ -160,24 +174,24 @@ model SaleOrder {
 }
 
 model UsedGoods {
-  id                String             @id @default(cuid())
-  code              String             @unique
+  id                String               @id @default(cuid())
+  code              String               @unique
   branchId          String
-  branch            Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  inputDate         DateTime           @db.Date
+  branch            Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  inputDate         DateTime             @db.Date
   name              String
   category          UsedGoodsCategory
-  qty               Decimal            @db.Decimal(14, 2)
+  qty               Decimal              @db.Decimal(14, 2)
   unit              UsedGoodsUnit
-  estimatedWeightKg Decimal?           @db.Decimal(12, 2)
-  estimatedPrice    Decimal?           @db.Decimal(14, 2)
+  estimatedWeightKg Decimal?             @db.Decimal(12, 2)
+  estimatedPrice    Decimal?             @db.Decimal(14, 2)
   condition         UsedGoodsCondition
   storageLocation   String?
   pic               String?
-  notes             String?            @db.Text
+  notes             String?              @db.Text
   saleOrders        UsedGoodsSaleOrder[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([branchId])
   @@index([category])
@@ -186,19 +200,64 @@ model UsedGoods {
 }
 
 model UsedGoodsSaleOrder {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   usedGoodsId String
-  usedGoods   UsedGoods @relation(fields: [usedGoodsId], references: [id], onDelete: Cascade)
-  qty         Decimal   @db.Decimal(14, 2)
+  usedGoods   UsedGoods  @relation(fields: [usedGoodsId], references: [id], onDelete: Cascade)
+  qty         Decimal    @db.Decimal(14, 2)
   buyerName   String
-  price       Decimal   @db.Decimal(14, 2)
-  saleDate    DateTime  @db.Date
+  price       Decimal    @db.Decimal(14, 2)
+  saleDate    DateTime   @db.Date
   status      SaleStatus @default(APPROVAL)
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  notes       String?    @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([usedGoodsId])
+  @@index([status])
+  @@index([saleDate])
+}
+
+model SgaItem {
+  id                String               @id @default(cuid())
+  tlsNumber         String               @unique
+  inputDate         DateTime             @db.Date
+  branchId          String
+  branch            Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  itemName          String
+  quantity          Int
+  picName           String
+  eligibilityStatus SgaEligibilityStatus
+  transactionStatus SgaTransactionStatus @default(TERSEDIA)
+  note              String?              @db.Text
+  createdById       String?
+  createdBy         User?                @relation("SgaItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  saleOrders        SgaSaleOrder[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([branchId])
+  @@index([inputDate])
+  @@index([eligibilityStatus])
+  @@index([transactionStatus])
+  @@index([picName])
+}
+
+model SgaSaleOrder {
+  id          String     @id @default(cuid())
+  sgaItemId   String
+  sgaItem     SgaItem    @relation(fields: [sgaItemId], references: [id], onDelete: Cascade)
+  buyerName   String
+  buyerType   String?
+  salePrice   Decimal    @db.Decimal(14, 2)
+  saleDate    DateTime   @db.Date
+  status      SaleStatus @default(APPROVAL)
+  note        String?    @db.Text
+  createdById String?
+  createdBy   User?      @relation("SgaSaleOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([sgaItemId])
   @@index([status])
   @@index([saleDate])
 }

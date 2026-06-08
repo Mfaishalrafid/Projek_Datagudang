@@ -4,13 +4,15 @@ import {
   conditionLabels,
   saleStatusLabels,
   roleLabels,
+  sgaEligibilityStatusLabels,
+  sgaTransactionStatusLabels,
   usedGoodsCategoryLabels,
   usedGoodsConditionLabels,
   usedGoodsUnitLabels,
   vehicleTypeLabels
 } from "@/data/options";
-import type { BranchDTO, SaleOrderDTO, SparepartDTO, UsedGoodsDTO, UsedGoodsSaleOrderDTO, UserDTO } from "@/lib/types";
-import type { Branch, SaleOrder, Sparepart, UsedGoods, UsedGoodsSaleOrder, User } from "@prisma/client";
+import type { BranchDTO, SaleOrderDTO, SgaItemDTO, SgaSaleOrderDTO, SparepartDTO, UsedGoodsDTO, UsedGoodsSaleOrderDTO, UserDTO } from "@/lib/types";
+import type { Branch, SaleOrder, SgaItem, SgaSaleOrder, Sparepart, UsedGoods, UsedGoodsSaleOrder, User } from "@prisma/client";
 
 type SparepartWithBranch = Sparepart & {
   branch: Branch;
@@ -28,6 +30,16 @@ type UsedGoodsWithBranch = UsedGoods & {
 
 type UsedGoodsSaleOrderWithItem = UsedGoodsSaleOrder & {
   usedGoods: UsedGoods & {
+    branch: Branch;
+  };
+};
+
+type SgaItemWithBranch = SgaItem & {
+  branch: Branch;
+};
+
+type SgaSaleOrderWithItem = SgaSaleOrder & {
+  sgaItem: SgaItem & {
     branch: Branch;
   };
 };
@@ -153,5 +165,48 @@ export function toUsedGoodsDTO(item: UsedGoodsWithBranch): UsedGoodsDTO {
     notes: item.notes,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString()
+  };
+}
+
+export function toSgaItemDTO(item: SgaItemWithBranch): SgaItemDTO {
+  return {
+    id: item.id,
+    tlsNumber: item.tlsNumber,
+    branchId: item.branchId,
+    branchName: item.branch.name,
+    branchCode: item.branch.code,
+    inputDate: item.inputDate.toISOString(),
+    itemName: item.itemName,
+    quantity: item.quantity,
+    picName: item.picName,
+    eligibilityStatus: item.eligibilityStatus,
+    eligibilityStatusLabel: sgaEligibilityStatusLabels[item.eligibilityStatus],
+    transactionStatus: item.transactionStatus,
+    transactionStatusLabel: sgaTransactionStatusLabels[item.transactionStatus],
+    note: item.note,
+    createdById: item.createdById,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString()
+  };
+}
+
+export function toSgaSaleOrderDTO(order: SgaSaleOrderWithItem): SgaSaleOrderDTO {
+  return {
+    id: order.id,
+    sgaItemId: order.sgaItemId,
+    tlsNumber: order.sgaItem.tlsNumber,
+    itemName: order.sgaItem.itemName,
+    branchName: order.sgaItem.branch.name,
+    quantity: order.sgaItem.quantity,
+    picName: order.sgaItem.picName,
+    buyerName: order.buyerName,
+    buyerType: order.buyerType,
+    salePrice: Number(order.salePrice),
+    saleDate: order.saleDate.toISOString(),
+    status: order.status,
+    statusLabel: saleStatusLabels[order.status],
+    note: order.note,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString()
   };
 }

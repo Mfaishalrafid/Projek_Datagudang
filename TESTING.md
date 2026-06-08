@@ -1,6 +1,6 @@
 # Testing BARKAS+
 
-Dokumen ini mencatat setup test untuk fitur v3 dan v4: Sparepart Ex-Service, Barang Bekas / Material, login, session, role, dan data scope pusat/cabang.
+Dokumen ini mencatat setup test untuk fitur v3, v4, dan v5: Sparepart Ex-Service, Barang Bekas / Material, SGA, login, session, role, dan data scope pusat/cabang.
 
 ## Command
 
@@ -27,6 +27,10 @@ Test yang ditambahkan mencakup:
 - Branch scope helper: user pusat bisa membaca semua data, user cabang hanya membaca/menulis data `branchId` dari session.
 - Server actions v4: user cabang tidak bisa manipulasi `branchId`, `KARYAWAN_CABANG` tidak bisa hapus data, role cabang tidak bisa membuat order jual, dan `ADMIN_PUSAT` tidak bisa mengelola user `SUPER_ADMIN`.
 - UI v4: login form, Dashboard Cabang, penyembunyian menu Layak Jual untuk role cabang, dan readonly cabang saat input oleh user cabang.
+- Validasi v5 SGA: normalisasi `tlsNumber`, duplikasi beda kapital, field wajib, jumlah positif, default `inputDate`, dan status kelayakan final.
+- Statistik/CSV v5 SGA: total data, total jumlah, layak/tidak layak, dalam order/terjual, cabang aktif, dan header CSV SGA.
+- Server actions v5 SGA dengan Prisma mock: create/list/export, role pusat bisa create, role cabang ditolak, duplikasi TLS ditolak, order SGA mengunci status `DALAM_ORDER`, dan SGA terjual tidak bisa diedit/dihapus.
+- UI v5 SGA: sidebar pusat menampilkan Pendataan SGA, input chooser membuka modal SGA tanpa field Kode SGA/Satuan, halaman Pendataan SGA filter/search, tab SGA di Dashboard/Inventori/Layak Jual/Data per Cabang/Laporan, dan error toast duplikasi TLS.
 
 ## Environment
 
