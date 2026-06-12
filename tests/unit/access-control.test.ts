@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyBranchScope,
   canAccessCentralDashboard,
+  canAccessSga,
   canAccessSales,
   canAssignRole,
   canDeleteOperationalData,
@@ -36,6 +37,8 @@ describe("role permission helpers", () => {
   it("allows dashboard pusat and layak jual only for central roles", () => {
     expect(canAccessCentralDashboard(adminPusat)).toBe(true);
     expect(canAccessSales(adminPusat)).toBe(true);
+    expect(canAccessSga(adminPusat)).toBe(true);
+    expect(canAccessSga(adminCabang)).toBe(true);
     expect(canAccessCentralDashboard(adminCabang)).toBe(false);
     expect(canAccessSales(adminCabang)).toBe(false);
   });
@@ -67,7 +70,8 @@ describe("role permission helpers", () => {
     expect(centralMenu.map((item) => item.key)).toContain("users");
     expect(centralMenu.find((item) => item.key === "barangbekas")?.section).toBe("main");
     expect(centralMenu.some((item) => item.section === "usedGoods")).toBe(false);
+    expect(getSidebarMenu(adminCabang).map((item) => item.key)).toContain("sga");
     expect(getSidebarMenu(adminCabang).map((item) => item.key)).not.toContain("penjualan");
-    expect(getSidebarMenu(karyawan).map((item) => item.label)).toContain("Dashboard Cabang");
+    expect(getSidebarMenu(karyawan).map((item) => item.label)).toContain("Pendataan SGA");
   });
 });

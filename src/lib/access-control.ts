@@ -56,7 +56,7 @@ export function canCreateOrder(user: Pick<SessionUser, "role">) {
 }
 
 export function canAccessSga(user: Pick<SessionUser, "role">) {
-  return isCentralRole(user.role);
+  return isCentralRole(user.role) || isBranchRole(user.role);
 }
 
 export function assertBranchUserHasBranch(user: Pick<SessionUser, "role" | "branchId">) {
@@ -124,6 +124,7 @@ export function getSidebarMenu(user: Pick<SessionUser, "role">): SidebarMenuItem
     { key: "dashboard", label: "Dashboard Cabang", section: "main" },
     { key: "pendataan", label: "Pendataan Sparepart", section: "main" },
     { key: "barangbekas", label: "Pendataan Barang Bekas", section: "main" },
+    { key: "sga", label: "Pendataan SGA", section: "main" },
     { key: "inventori", label: "Inventori Cabang", section: "main" },
     { key: "laporan", label: "Laporan Cabang", section: "reference" },
     { key: "cabang", label: "Profil Cabang", section: "reference" }

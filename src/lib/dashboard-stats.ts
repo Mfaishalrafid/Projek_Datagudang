@@ -15,13 +15,31 @@ export function calculateDashboardStatsFromData(
   usedGoods: Parameters<typeof calculateUsedGoodsStats>[0],
   sgaItems: Parameters<typeof calculateSgaStats>[0] = []
 ): DashboardStats {
+  const sparepartStats = {
+    total: 0,
+    saleable: 0,
+    damaged: 0,
+    activeBranches: new Set<string>(),
+    uniquePlates: new Set<string>(),
+    uniquePjpp: new Set<string>()
+  };
+
+  for (const item of spareparts) {
+    sparepartStats.total += 1;
+    sparepartStats.saleable += item.condition === "LAYAK_JUAL" ? 1 : 0;
+    sparepartStats.damaged += item.condition === "RUSAK" ? 1 : 0;
+    sparepartStats.activeBranches.add(item.branchId);
+    sparepartStats.uniquePlates.add(item.plateNumber.trim());
+    sparepartStats.uniquePjpp.add(item.pjpp.trim());
+  }
+
   return {
-    total: spareparts.length,
-    saleable: spareparts.filter((item) => item.condition === "LAYAK_JUAL").length,
-    damaged: spareparts.filter((item) => item.condition === "RUSAK").length,
-    activeBranches: new Set(spareparts.map((item) => item.branchId)).size,
-    uniquePlates: new Set(spareparts.map((item) => item.plateNumber)).size,
-    uniquePjpp: new Set(spareparts.map((item) => item.pjpp)).size,
+    total: sparepartStats.total,
+    saleable: sparepartStats.saleable,
+    damaged: sparepartStats.damaged,
+    activeBranches: sparepartStats.activeBranches.size,
+    uniquePlates: sparepartStats.uniquePlates.size,
+    uniquePjpp: sparepartStats.uniquePjpp.size,
     usedGoods: calculateUsedGoodsStats(usedGoods),
     sga: calculateSgaStats(sgaItems)
   };

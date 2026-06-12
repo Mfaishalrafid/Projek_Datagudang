@@ -24,6 +24,8 @@ import {
   updateUser
 } from "@/app/actions";
 import { Badge, branchTone } from "@/components/Badge";
+import { AnalyticsChartCard } from "@/components/AnalyticsChartCard";
+import { Card } from "@/components/Card";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Drawer } from "@/components/Drawer";
 import { FilterBar, type FilterState } from "@/components/FilterBar";
@@ -34,7 +36,7 @@ import { ProgressBar, ProgressRow } from "@/components/ProgressBar";
 import { Sidebar, type PageKey } from "@/components/Sidebar";
 import { StatCard } from "@/components/StatCard";
 import { ToastStack, type ToastItem } from "@/components/Toast";
-import { Topbar } from "@/components/Topbar";
+import { Topbar, type GlobalSearchKind, type GlobalSearchResults } from "@/components/Topbar";
 import {
   buyerTypeOptions,
   assignableRoleOptions,
@@ -51,6 +53,17 @@ import {
   vehicleTypeLabels
 } from "@/data/options";
 import { buildSgaCsv, buildSparepartCsv, buildUsedGoodsCsv, downloadCsv } from "@/lib/csv";
+import {
+  groupSgaItems as sgaGroupEntries,
+  groupSpareparts as groupEntries,
+  groupUsedGoods as usedGoodsGroupEntries,
+  sgaTrendEntries,
+  sparepartTrendEntries as trendEntries,
+  type SgaGroupRow,
+  type SparepartGroupRow as GroupRow,
+  type UsedGoodsGroupRow
+} from "@/lib/dashboard-analytics";
+import { calculateDashboardStatsFromData } from "@/lib/dashboard-stats";
 import { formatCurrency, formatDate, formatDateInput, groupBy, pct } from "@/lib/format";
 import {
   buildSparepartSaleIndex,
@@ -76,8 +89,6 @@ import {
   isBranchRole,
   type SessionUser
 } from "@/lib/access-control";
-import { calculateUsedGoodsStats } from "@/lib/used-goods-analytics";
-import { calculateSgaStats } from "@/lib/sga-analytics";
 import {
   branchInputSchema,
   branchUpdateSchema,
@@ -334,8 +345,6 @@ const blankUserForm: UserForm = {
   isActive: true
 };
 
-const chartColors = ["var(--blue)", "var(--teal)", "var(--amber2)", "var(--red2)", "var(--purple)", "var(--orange)", "var(--green)"];
-
 export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialData: InitialData; initialPage?: PageKey }) {
   const currentUser = initialData.currentUser as SessionUser;
   const [activePage, setActivePage] = useState<PageKey>(initialPage);
@@ -384,7 +393,7 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
   const sortedSpareparts = useMemo(() => sortSpareparts(spareparts), [spareparts]);
   const sortedUsedGoods = useMemo(() => sortUsedGoods(usedGoods), [usedGoods]);
   const sortedSgaItems = useMemo(() => sortSgaItems(sgaItems), [sgaItems]);
-  const stats = useMemo(() => computeStats(spareparts, usedGoods, sgaItems), [spareparts, usedGoods, sgaItems]);
+  const stats = useMemo(() => calculateDashboardStatsFromData(spareparts, usedGoods, sgaItems), [spareparts, usedGoods, sgaItems]);
   const saleable = useMemo(() => sortedSpareparts.filter((part) => part.condition === "LAYAK_JUAL"), [sortedSpareparts]);
   const saleableUsedGoods = useMemo(() => sortedUsedGoods.filter((item) => item.condition === "LAYAK_JUAL"), [sortedUsedGoods]);
   const saleableSga = useMemo(() => sortedSgaItems.filter((item) => item.eligibilityStatus === "LAYAK_JUAL"), [sortedSgaItems]);
@@ -401,6 +410,10 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
   const filteredSpareparts = useMemo(() => filterSpareparts(sortedSpareparts, filters), [sortedSpareparts, filters]);
   const filteredUsedGoods = useMemo(() => filterUsedGoods(sortedUsedGoods, usedGoodsFilters), [sortedUsedGoods, usedGoodsFilters]);
   const filteredSgaItems = useMemo(() => filterSgaItems(sortedSgaItems, sgaFilters), [sortedSgaItems, sgaFilters]);
+  const globalSearchResults = useMemo(
+    () => buildGlobalSearchResults(globalQuery, sortedSpareparts, sortedUsedGoods, sortedSgaItems),
+    [globalQuery, sortedSpareparts, sortedUsedGoods, sortedSgaItems]
+  );
   const selectedSalePart = useMemo(
     () => spareparts.find((part) => part.id === saleForm.sparepartId) || null,
     [saleForm.sparepartId, spareparts]
@@ -431,6 +444,7 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
   );
   const canSell = canAccessSales(currentUser);
   const canDelete = canDeleteOperationalData(currentUser);
+  const canEditSga = currentUser.role !== "KARYAWAN_CABANG";
   const canExport = canExportData(currentUser);
   const canManageBranchMaster = canManageBranches(currentUser);
   const canManageUserMaster = canManageUsers(currentUser);
@@ -486,7 +500,10 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
 
   function openCreateSga() {
     setEditingSga(null);
-    setSgaForm(blankSgaForm);
+    setSgaForm({
+      ...blankSgaForm,
+      branchId: isBranchRole(currentUser.role) ? currentUser.branchId || "" : ""
+    });
     setFormError("");
     setSgaModalOpen(true);
   }
@@ -682,27 +699,42 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
     const query = globalQuery.trim();
     if (!query) return;
 
-    const sparepartCount = filterSpareparts(sortedSpareparts, { ...blankFilters, query }).length;
-    const usedGoodsCount = filterUsedGoods(sortedUsedGoods, { ...blankUsedGoodsFilters, query }).length;
-    const sgaCount = filterSgaItems(sortedSgaItems, { ...blankSgaFilters, query, tlsNumber: query }).length;
+    const sparepartCount = globalSearchResults.spareparts.length;
+    const usedGoodsCount = globalSearchResults.usedGoods.length;
+    const sgaCount = globalSearchResults.sgaItems.length;
+    const total = sparepartCount + usedGoodsCount + sgaCount;
 
-    if (sgaCount > sparepartCount && sgaCount >= usedGoodsCount) {
-      setSgaFilters({ ...blankSgaFilters, query, tlsNumber: query });
-      setActivePage("sga");
-      pushToast(`${sgaCount} data SGA untuk "${query}" dibuka di Pendataan SGA`, "info");
+    if (!total) {
+      pushToast(`Tidak ada hasil untuk "${query}".`, "info");
       return;
     }
 
-    if (usedGoodsCount > sparepartCount) {
-      setUsedGoodsFilters({ ...blankUsedGoodsFilters, query });
+    pushToast(`${sparepartCount} sparepart • ${usedGoodsCount} barang bekas • ${sgaCount} SGA ditemukan untuk "${query}"`, "info");
+  }
+
+  function selectGlobalSearchResult(kind: GlobalSearchKind, id: string) {
+    if (kind === "spareparts") {
+      const item = spareparts.find((part) => part.id === id);
+      if (!item) return;
+      setActivePage("pendataan");
+      setSelectedPart(item);
+    }
+
+    if (kind === "usedGoods") {
+      const item = usedGoods.find((entry) => entry.id === id);
+      if (!item) return;
       setActivePage("barangbekas");
-      pushToast(`${usedGoodsCount} barang bekas untuk "${query}" dibuka di Pendataan Barang Bekas`, "info");
-      return;
+      setSelectedUsedGoods(item);
     }
 
-    setFilters({ ...blankFilters, query });
-    setActivePage("pendataan");
-    pushToast(`${sparepartCount} sparepart + ${usedGoodsCount} barang bekas + ${sgaCount} SGA untuk "${query}"`, "info");
+    if (kind === "sgaItems") {
+      const item = sgaItems.find((entry) => entry.id === id);
+      if (!item) return;
+      setActivePage("sga");
+      setSelectedSga(item);
+    }
+
+    setGlobalQuery("");
   }
 
   async function handleExport() {
@@ -1272,9 +1304,6 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
       );
     }
     if (activePage === "sga") {
-      if (isBranchRole(currentUser.role)) {
-        return <ForbiddenPage title="Pendataan SGA" message="Role cabang belum dapat mengakses modul SGA." />;
-      }
       return (
         <SgaPage
           branches={branches}
@@ -1289,6 +1318,7 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
           onDelete={handleSgaDelete}
           onExport={handleSgaExport}
           canSell={canSell}
+          canEdit={canEditSga}
           canDelete={canDelete}
           canExport={canExport}
         />
@@ -1372,11 +1402,14 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
           branch={branches.find((branch) => branch.id === currentUser.branchId) || null}
           data={sortedSpareparts}
           usedGoods={sortedUsedGoods}
+          sgaItems={sortedSgaItems}
           stats={stats}
           onAddPart={openCreatePart}
           onAddUsedGoods={openCreateUsedGoods}
+          onAddSga={openCreateSga}
           onOpen={setSelectedPart}
           onOpenUsedGoods={setSelectedUsedGoods}
+          onOpenSga={setSelectedSga}
         />
       );
     }
@@ -1408,8 +1441,10 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
         <Topbar
           activePage={activePage}
           query={globalQuery}
+          results={globalSearchResults}
           onQueryChange={setGlobalQuery}
           onSubmitSearch={submitGlobalSearch}
+          onSelectSearchResult={selectGlobalSearchResult}
           onExport={handleExportAll}
           onAdd={openInputChooser}
           onLogout={() => void logoutAction()}
@@ -1454,6 +1489,7 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
         onSale={openSgaSale}
         lockStatus={selectedSgaEditLock}
         canSell={canSell}
+        canEdit={canEditSga}
         canDelete={canDelete}
       />
       <InputChooserModal
@@ -1503,6 +1539,7 @@ export function BarkasApp({ initialData, initialPage = "dashboard" }: { initialD
           setEditingSga(null);
         }}
         onSubmit={handleSgaSubmit}
+        currentUser={currentUser}
       />
       <SaleModal
         open={saleModalOpen}
@@ -1583,49 +1620,34 @@ function BranchDashboardPage({
   branch,
   data,
   usedGoods,
+  sgaItems,
   stats,
   onAddPart,
   onAddUsedGoods,
+  onAddSga,
   onOpen,
-  onOpenUsedGoods
+  onOpenUsedGoods,
+  onOpenSga
 }: {
   user: SessionUser;
   branch: BranchDTO | null;
   data: SparepartDTO[];
   usedGoods: UsedGoodsDTO[];
+  sgaItems: SgaItemDTO[];
   stats: DashboardStats;
   onAddPart: () => void;
   onAddUsedGoods: () => void;
+  onAddSga: () => void;
   onOpen: (part: SparepartDTO) => void;
   onOpenUsedGoods: (item: UsedGoodsDTO) => void;
+  onOpenSga: (item: SgaItemDTO) => void;
 }) {
+  const [tab, setTab] = useState<ModuleTabKey>("sparepart");
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const monthlyInputs =
-    data.filter((item) => item.createdAt.slice(0, 7) === thisMonth || item.removedDate?.slice(0, 7) === thisMonth).length +
-    usedGoods.filter((item) => item.createdAt.slice(0, 7) === thisMonth || item.inputDate.slice(0, 7) === thisMonth).length;
+  const monthlySparepartInputs = data.filter((item) => item.createdAt.slice(0, 7) === thisMonth || item.removedDate?.slice(0, 7) === thisMonth).length;
+  const monthlyUsedGoodsInputs = usedGoods.filter((item) => item.createdAt.slice(0, 7) === thisMonth || item.inputDate.slice(0, 7) === thisMonth).length;
+  const monthlySgaInputs = sgaItems.filter((item) => item.createdAt.slice(0, 7) === thisMonth || item.inputDate.slice(0, 7) === thisMonth).length;
   const estimatedValue = usedGoods.reduce((sum, item) => sum + (item.estimatedPrice || 0), 0);
-  const latest = [
-    ...data.slice(0, 5).map((item) => ({
-      id: `sp-${item.id}`,
-      date: item.removedDate || item.createdAt,
-      type: "Sparepart",
-      name: item.name,
-      category: item.categoryLabel,
-      condition: item.conditionLabel,
-      onClick: () => onOpen(item)
-    })),
-    ...usedGoods.slice(0, 5).map((item) => ({
-      id: `bb-${item.id}`,
-      date: item.inputDate,
-      type: "Barang Bekas",
-      name: item.name,
-      category: item.categoryLabel,
-      condition: item.conditionLabel,
-      onClick: () => onOpenUsedGoods(item)
-    }))
-  ]
-    .sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || ""))
-    .slice(0, 8);
 
   return (
     <div className="page-stack">
@@ -1642,6 +1664,10 @@ function BranchDashboardPage({
               <Plus size={15} />
               Input Barang Bekas
             </button>
+            <button className="btn btn-ghost" type="button" onClick={onAddSga}>
+              <Plus size={15} />
+              Input SGA
+            </button>
           </div>
         }
       />
@@ -1653,37 +1679,66 @@ function BranchDashboardPage({
           <InfoBlock label="Status" value={<Badge tone={branch?.isActive === false ? "damaged" : "saleable"}>{branch?.isActive === false ? "Nonaktif" : "Aktif"}</Badge>} />
         </div>
       </Card>
-      <div className="stats stats-5">
-        <StatCard label="Total Sparepart Cabang" value={stats.total} icon={Package} tone="blue" />
-        <StatCard label="Total Barang Bekas Cabang" value={stats.usedGoods.total} icon={Archive} tone="amber" />
-        <StatCard label="Kondisi Layak" value={stats.saleable + stats.usedGoods.saleable} icon={CheckCircle2} tone="teal" />
-        <StatCard label="Rusak / Tidak Layak Cabang" value={stats.damaged + stats.usedGoods.notSaleable} icon={X} tone="red" />
-        <StatCard label="Estimasi Nilai Cabang" value={formatCurrency(estimatedValue)} meta={`${monthlyInputs} input bulan ini`} icon={FileBarChart} tone="purple" />
-      </div>
-      <div className="grid-2">
-        <Card title="Data Terbaru Cabang">
-          <DataTable
-            columns={[
-              { key: "date", header: "Tanggal", cell: (row) => <span className="td-muted">{formatDate(row.date)}</span> },
-              { key: "type", header: "Jenis Data", cell: (row) => <Badge tone="vehicle">{row.type}</Badge> },
-              { key: "name", header: "Nama Barang", cell: (row) => <span className="td-bold">{row.name}</span> },
-              { key: "category", header: "Kategori", cell: (row) => <Badge>{row.category}</Badge> },
-              { key: "condition", header: "Kondisi", cell: (row) => row.condition }
-            ]}
-            data={latest}
-            getRowKey={(row) => row.id}
-            onRowClick={(row) => row.onClick()}
-          />
-        </Card>
-        <Card title="Kondisi Cabang">
-          <div className="card-body progress-card-body">
-            <ProgressRow label="Sparepart LAYAK JUAL" value={stats.saleable} max={Math.max(stats.total, 1)} color="var(--teal)" />
-            <ProgressRow label="Sparepart RUSAK" value={stats.damaged} max={Math.max(stats.total, 1)} color="var(--red2)" />
-            <ProgressRow label="Barang Bekas LAYAK JUAL" value={stats.usedGoods.saleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--teal)" />
-            <ProgressRow label="Barang Bekas TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--red2)" />
+      <ModuleTabs value={tab} onChange={setTab} />
+      {tab === "sparepart" ? (
+        <>
+          <div className="stats stats-4">
+            <StatCard label="Total Sparepart Cabang" value={stats.total} icon={Package} tone="blue" />
+            <StatCard label="Kondisi Layak" value={stats.saleable} icon={CheckCircle2} tone="teal" />
+            <StatCard label="Rusak Cabang" value={stats.damaged} icon={X} tone="red" />
+            <StatCard label="Input Bulan Ini" value={monthlySparepartInputs} icon={FileBarChart} tone="purple" />
           </div>
-        </Card>
-      </div>
+          <div className="grid-2">
+            <Card title="Sparepart Terbaru Cabang">
+              <DataTable columns={dashboardColumns()} data={data.slice(0, 8)} getRowKey={(row) => row.id} onRowClick={onOpen} />
+            </Card>
+            <Card title="Kondisi Sparepart Cabang">
+              <div className="card-body progress-card-body">
+                <ProgressRow label="LAYAK JUAL" value={stats.saleable} max={Math.max(stats.total, 1)} color="var(--teal)" />
+                <ProgressRow label="RUSAK" value={stats.damaged} max={Math.max(stats.total, 1)} color="var(--red2)" />
+              </div>
+            </Card>
+          </div>
+        </>
+      ) : tab === "usedGoods" ? (
+        <>
+          <div className="stats stats-4">
+            <StatCard label="Total Barang Bekas Cabang" value={stats.usedGoods.total} icon={Archive} tone="amber" />
+            <StatCard label="Total Qty" value={formatNumber(stats.usedGoods.totalQty)} icon={Package} tone="blue" />
+            <StatCard label="Layak Jual" value={stats.usedGoods.saleable} icon={CheckCircle2} tone="teal" />
+            <StatCard label="Estimasi Nilai" value={formatCurrency(estimatedValue)} meta={`${monthlyUsedGoodsInputs} input bulan ini`} icon={FileBarChart} tone="purple" />
+          </div>
+          <div className="grid-2">
+            <Card title="Barang Bekas Terbaru Cabang">
+              <DataTable columns={usedGoodsRecentColumns()} data={usedGoods.slice(0, 8)} getRowKey={(row) => row.id} onRowClick={onOpenUsedGoods} />
+            </Card>
+            <Card title="Kondisi Barang Bekas Cabang">
+              <div className="card-body progress-card-body">
+                <ProgressRow label="LAYAK JUAL" value={stats.usedGoods.saleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--teal)" />
+                <ProgressRow label="TIDAK LAYAK" value={stats.usedGoods.notSaleable} max={Math.max(stats.usedGoods.total, 1)} color="var(--red2)" />
+              </div>
+            </Card>
+          </div>
+        </>
+      ) : (
+        <>
+          <SgaStatsGrid stats={stats.sga} />
+          <div className="grid-2">
+            <Card title="Data SGA Terbaru Cabang" subtitle={`${monthlySgaInputs} input bulan ini`}>
+              <DataTable columns={sgaRecentColumns()} data={sgaItems.slice(0, 8)} getRowKey={(row) => row.id} onRowClick={onOpenSga} />
+            </Card>
+            <Card title="Kondisi SGA Cabang">
+              <div className="card-body progress-card-body">
+                <ProgressRow label="LAYAK JUAL" value={stats.sga.saleable} max={Math.max(stats.sga.total, 1)} color="var(--teal)" />
+                <ProgressRow label="TIDAK LAYAK" value={stats.sga.notSaleable} max={Math.max(stats.sga.total, 1)} color="var(--red2)" />
+                <ProgressRow label="DALAM ORDER" value={stats.sga.inOrder} max={Math.max(stats.sga.total, 1)} color="var(--amber2)" />
+                <ProgressRow label="TERJUAL" value={stats.sga.sold} max={Math.max(stats.sga.total, 1)} color="var(--purple)" />
+              </div>
+            </Card>
+          </div>
+          <AnalyticsChartCard title="Rekap SGA per PIC Input" entries={sgaGroupEntries(sgaItems, (item) => item.picName)} />
+        </>
+      )}
     </div>
   );
 }
@@ -1739,9 +1794,9 @@ function DashboardPage({
             </Card>
           </div>
           <div className="grid-3">
-            <ChartCard title="Per Cabang" entries={groupEntries(data, (item) => item.branchName)} color="var(--purple)" />
-            <ChartCard title="Per Kategori" entries={groupEntries(data, (item) => item.categoryLabel)} />
-            <ChartCard title="Per Jenis Kendaraan" entries={groupEntries(data, (item) => item.vehicleTypeLabel)} color="var(--amber2)" />
+            <AnalyticsChartCard title="Per Cabang" entries={groupEntries(data, (item) => item.branchName)} color="var(--purple)" />
+            <AnalyticsChartCard title="Per Kategori" entries={groupEntries(data, (item) => item.categoryLabel)} />
+            <AnalyticsChartCard title="Per Jenis Kendaraan" entries={groupEntries(data, (item) => item.vehicleTypeLabel)} color="var(--amber2)" />
           </div>
         </>
       ) : tab === "usedGoods" ? (
@@ -1771,9 +1826,9 @@ function DashboardPage({
             </Card>
           </div>
           <div className="grid-3">
-            <UsedGoodsChartCard title="Per Kategori Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.categoryLabel)} />
-            <UsedGoodsChartCard title="Per Cabang Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.branchName)} color="var(--purple)" />
-            <UsedGoodsChartCard title="Per Satuan Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.unitLabel)} color="var(--amber2)" />
+            <AnalyticsChartCard title="Per Kategori Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.categoryLabel)} />
+            <AnalyticsChartCard title="Per Cabang Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.branchName)} color="var(--purple)" />
+            <AnalyticsChartCard title="Per Satuan Barang Bekas" entries={usedGoodsGroupEntries(usedGoods, (item) => item.unitLabel)} color="var(--amber2)" />
           </div>
         </>
       ) : (
@@ -1801,9 +1856,9 @@ function DashboardPage({
             </Card>
           </div>
           <div className="grid-3">
-            <SgaChartCard title="Distribusi SGA per Cabang" entries={sgaGroupEntries(sgaItems, (item) => item.branchName)} color="var(--purple)" />
-            <SgaChartCard title="Distribusi SGA per PIC Input" entries={sgaGroupEntries(sgaItems, (item) => item.picName)} />
-            <SgaChartCard title="Ringkasan Layak Jual SGA" entries={sgaGroupEntries(sgaItems, (item) => item.eligibilityStatusLabel)} color="var(--amber2)" />
+            <AnalyticsChartCard title="Distribusi SGA per Cabang" entries={sgaGroupEntries(sgaItems, (item) => item.branchName)} color="var(--purple)" />
+            <AnalyticsChartCard title="Distribusi SGA per PIC Input" entries={sgaGroupEntries(sgaItems, (item) => item.picName)} />
+            <AnalyticsChartCard title="Ringkasan Layak Jual SGA" entries={sgaGroupEntries(sgaItems, (item) => item.eligibilityStatusLabel)} color="var(--amber2)" />
           </div>
         </>
       )}
@@ -1945,6 +2000,7 @@ function SgaPage({
   onDelete,
   onExport,
   canSell,
+  canEdit,
   canDelete,
   canExport
 }: {
@@ -1960,6 +2016,7 @@ function SgaPage({
   onDelete: (item: SgaItemDTO) => void;
   onExport: () => void;
   canSell: boolean;
+  canEdit: boolean;
   canDelete: boolean;
   canExport: boolean;
 }) {
@@ -1988,7 +2045,7 @@ function SgaPage({
       <SgaStatsGrid stats={stats} />
       <SgaFilterBar value={filters} branches={branches} count={data.length} onChange={onFiltersChange} />
       <Card>
-        <DataTable columns={sgaColumns(onOpen, onEdit, onSale, onDelete, canSell, canDelete)} data={data} getRowKey={(row) => row.id} onRowClick={onOpen} />
+        <DataTable columns={sgaColumns(onOpen, onEdit, onSale, onDelete, canSell, canEdit, canDelete)} data={data} getRowKey={(row) => row.id} onRowClick={onOpen} />
       </Card>
     </div>
   );
@@ -3036,7 +3093,8 @@ function SgaModal({
   pending,
   onChange,
   onClose,
-  onSubmit
+  onSubmit,
+  currentUser
 }: {
   open: boolean;
   editing: SgaItemDTO | null;
@@ -3047,7 +3105,10 @@ function SgaModal({
   onChange: (form: SgaForm) => void;
   onClose: () => void;
   onSubmit: () => void;
+  currentUser: SessionUser;
 }) {
+  const branchLocked = isBranchRole(currentUser.role);
+
   function set<K extends keyof SgaForm>(key: K, value: SgaForm[K]) {
     onChange({ ...form, [key]: value });
   }
@@ -3080,8 +3141,8 @@ function SgaModal({
             <input className="form-control" value={form.tlsNumber} onChange={(event) => set("tlsNumber", event.target.value)} placeholder="TLS-2026-001" />
           </Field>
           <Field label="Cabang" required>
-            <select className="form-control" value={form.branchId} onChange={(event) => set("branchId", event.target.value)}>
-              <option value="">Pilih Cabang</option>
+            <select className="form-control" value={form.branchId} onChange={(event) => set("branchId", event.target.value)} disabled={branchLocked}>
+              {branchLocked ? null : <option value="">Pilih Cabang</option>}
               {branches.filter((branch) => branch.isActive).map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -3673,6 +3734,7 @@ function SgaDetailModal({
   onSale,
   lockStatus,
   canSell,
+  canEdit,
   canDelete
 }: {
   item: SgaItemDTO | null;
@@ -3682,6 +3744,7 @@ function SgaDetailModal({
   onSale: (item: SgaItemDTO) => void;
   lockStatus: EditLockState | null;
   canSell: boolean;
+  canEdit: boolean;
   canDelete: boolean;
 }) {
   const canEditItem = lockStatus?.canEdit ?? true;
@@ -3708,7 +3771,7 @@ function SgaDetailModal({
           {item && !canEditItem && lockStatus ? (
             <Badge tone={lockStatus.tone} dot>{lockStatus.label}</Badge>
           ) : null}
-          {item && canEditItem ? (
+          {item && canEdit && canEditItem ? (
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => onEdit(item)}>
               <Edit3 size={14} />
               Edit
@@ -3797,35 +3860,6 @@ function PageHead({ title, subtitle, actions }: { title: string; subtitle?: stri
   );
 }
 
-function Card({
-  title,
-  subtitle,
-  action,
-  children,
-  className
-}: {
-  title?: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={className ? `card ${className}` : "card"}>
-      {title || subtitle || action ? (
-        <div className="card-head">
-          <div>
-            {title ? <div className="card-title">{title}</div> : null}
-            {subtitle ? <div className="card-subtitle">{subtitle}</div> : null}
-          </div>
-          {action}
-        </div>
-      ) : null}
-      {children}
-    </section>
-  );
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="field">
@@ -3834,72 +3868,6 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </label>
       {children}
     </div>
-  );
-}
-
-function ChartCard({
-  title,
-  entries,
-  color
-}: {
-  title: string;
-  entries: GroupRow[];
-  color?: string;
-}) {
-  const max = Math.max(...entries.map((entry) => entry.total), 1);
-
-  return (
-    <Card title={title}>
-      <div className="card-body progress-card-body">
-        {entries.map((entry, index) => (
-          <ProgressRow key={entry.label} label={entry.label} value={entry.total} max={max} color={color || chartColors[index % chartColors.length]} />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function UsedGoodsChartCard({
-  title,
-  entries,
-  color
-}: {
-  title: string;
-  entries: UsedGoodsGroupRow[];
-  color?: string;
-}) {
-  const max = Math.max(...entries.map((entry) => entry.total), 1);
-
-  return (
-    <Card title={title}>
-      <div className="card-body progress-card-body">
-        {entries.map((entry, index) => (
-          <ProgressRow key={entry.label} label={entry.label} value={entry.total} max={max} color={color || chartColors[index % chartColors.length]} />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function SgaChartCard({
-  title,
-  entries,
-  color
-}: {
-  title: string;
-  entries: SgaGroupRow[];
-  color?: string;
-}) {
-  const max = Math.max(...entries.map((entry) => entry.total), 1);
-
-  return (
-    <Card title={title}>
-      <div className="card-body progress-card-body">
-        {entries.map((entry, index) => (
-          <ProgressRow key={entry.label} label={entry.label} value={entry.total} max={max} color={color || chartColors[index % chartColors.length]} />
-        ))}
-      </div>
-    </Card>
   );
 }
 
@@ -4072,7 +4040,7 @@ function SgaFilterBar({
       />
       <input
         className="filter-input"
-        placeholder="Cari nama/PIC..."
+        placeholder="Cari nama barang / PIC..."
         value={value.query}
         onChange={(event) => onChange({ ...value, query: event.target.value })}
       />
@@ -4413,6 +4381,7 @@ function sgaColumns(
   onSale: (item: SgaItemDTO) => void,
   onDelete: (item: SgaItemDTO) => void,
   canSell: boolean,
+  canEdit: boolean,
   canDelete: boolean
 ): Column<SgaItemDTO>[] {
   return [
@@ -4446,13 +4415,13 @@ function sgaColumns(
                 <Badge tone={availability.tone} dot>{availability.label}</Badge>
               )
             ) : null}
-            {lock.canEdit ? (
+            {canEdit && lock.canEdit ? (
               <button className="btn btn-ghost btn-xs" type="button" onClick={() => onEdit(item)}>
                 Edit
               </button>
-            ) : (
+            ) : !lock.canEdit ? (
               <Badge tone={lock.tone} dot>{lock.label}</Badge>
-            )}
+            ) : null}
             {canDelete && lock.canDelete ? (
               <button className="btn btn-danger btn-xs" type="button" onClick={() => onDelete(item)} title="Hapus SGA">
                 <Trash2 size={12} />
@@ -4559,120 +4528,54 @@ function VehicleCell({ part }: { part: SparepartDTO }) {
   );
 }
 
-type GroupRow = {
-  label: string;
-  total: number;
-  saleable: number;
-  damaged: number;
-  items: SparepartDTO[];
-};
+function buildGlobalSearchResults(query: string, spareparts: SparepartDTO[], usedGoods: UsedGoodsDTO[], sgaItems: SgaItemDTO[]): GlobalSearchResults {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return { spareparts: [], usedGoods: [], sgaItems: [] };
+  }
 
-type UsedGoodsGroupRow = {
-  label: string;
-  total: number;
-  totalQty: number;
-  saleable: number;
-  notSaleable: number;
-  totalWeightKg: number;
-  items: UsedGoodsDTO[];
-};
-
-type SgaGroupRow = {
-  label: string;
-  total: number;
-  totalQuantity: number;
-  saleable: number;
-  notSaleable: number;
-  inOrder: number;
-  sold: number;
-  items: SgaItemDTO[];
-};
-
-function groupEntries(data: SparepartDTO[], selector: (part: SparepartDTO) => string): GroupRow[] {
-  return Object.entries(groupBy(data, selector))
-    .map(([label, items]) => ({
-      label,
-      total: items.length,
-      saleable: items.filter((item) => item.condition === "LAYAK_JUAL").length,
-      damaged: items.filter((item) => item.condition === "RUSAK").length,
-      items
-    }))
-    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-}
-
-function usedGoodsGroupEntries(data: UsedGoodsDTO[], selector: (item: UsedGoodsDTO) => string): UsedGoodsGroupRow[] {
-  return Object.entries(groupBy(data, selector))
-    .map(([label, items]) => ({
-      label,
-      total: items.length,
-      totalQty: items.reduce((sum, item) => sum + item.qty, 0),
-      saleable: items.filter((item) => item.condition === "LAYAK_JUAL").length,
-      notSaleable: items.filter((item) => item.condition === "TIDAK_LAYAK").length,
-      totalWeightKg: items.reduce((sum, item) => sum + (item.estimatedWeightKg || 0), 0),
-      items
-    }))
-    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-}
-
-function sgaGroupEntries(data: SgaItemDTO[], selector: (item: SgaItemDTO) => string): SgaGroupRow[] {
-  return Object.entries(groupBy(data, selector))
-    .map(([label, items]) => ({
-      label,
-      total: items.length,
-      totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
-      saleable: items.filter((item) => item.eligibilityStatus === "LAYAK_JUAL").length,
-      notSaleable: items.filter((item) => item.eligibilityStatus === "TIDAK_LAYAK").length,
-      inOrder: items.filter((item) => item.transactionStatus === "DALAM_ORDER").length,
-      sold: items.filter((item) => item.transactionStatus === "TERJUAL").length,
-      items
-    }))
-    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-}
-
-function trendEntries(data: SparepartDTO[]) {
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  return Object.entries(
-    data.reduce<Record<string, number>>((acc, item) => {
-      const key = item.removedDate ? item.removedDate.slice(0, 7) : "Unknown";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => {
-      if (key === "Unknown") return { label: "N/A", value };
-      const month = Number(key.slice(5, 7)) - 1;
-      return { label: monthNames[month] || key, value };
-    });
-}
-
-function sgaTrendEntries(data: SgaItemDTO[]) {
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  return Object.entries(
-    data.reduce<Record<string, number>>((acc, item) => {
-      const key = item.inputDate.slice(0, 7);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => {
-      const month = Number(key.slice(5, 7)) - 1;
-      return { label: monthNames[month] || key, value };
-    });
-}
-
-function computeStats(data: SparepartDTO[], usedGoods: UsedGoodsDTO[], sgaItems: SgaItemDTO[]): DashboardStats {
   return {
-    total: data.length,
-    saleable: data.filter((part) => part.condition === "LAYAK_JUAL").length,
-    damaged: data.filter((part) => part.condition === "RUSAK").length,
-    activeBranches: new Set(data.map((part) => part.branchId)).size,
-    uniquePlates: new Set(data.map((part) => part.plateNumber.trim())).size,
-    uniquePjpp: new Set(data.map((part) => part.pjpp.trim())).size,
-    usedGoods: calculateUsedGoodsStats(usedGoods),
-    sga: calculateSgaStats(sgaItems)
+    spareparts: spareparts.filter((part) =>
+      matchesGlobalQuery(normalized, [
+        part.name,
+        part.pjpp,
+        part.plateNumber,
+        part.category,
+        part.categoryLabel,
+        part.branchName,
+        part.branchCode || ""
+      ])
+    ),
+    usedGoods: usedGoods.filter((item) =>
+      matchesGlobalQuery(normalized, [
+        item.name,
+        item.category,
+        item.categoryLabel,
+        item.branchName,
+        item.branchCode || "",
+        item.code,
+        item.pic || ""
+      ])
+    ),
+    sgaItems: sgaItems.filter((item) =>
+      matchesGlobalQuery(normalized, [
+        item.itemName,
+        item.tlsNumber,
+        item.branchName,
+        item.branchCode || "",
+        item.picName,
+        item.eligibilityStatus,
+        item.eligibilityStatusLabel,
+        item.transactionStatus,
+        item.transactionStatusLabel,
+        item.note || ""
+      ])
+    )
   };
+}
+
+function matchesGlobalQuery(query: string, values: Array<string | number | null | undefined>) {
+  return values.some((value) => String(value ?? "").toLowerCase().includes(query));
 }
 
 function filterSpareparts(data: SparepartDTO[], filters: FilterState) {
@@ -4716,12 +4619,18 @@ function filterSgaItems(data: SgaItemDTO[], filters: SgaFilterState) {
     if (filters.branchId && item.branchId !== filters.branchId) return false;
     if (tlsNumber && !item.tlsNumber.includes(tlsNumber)) return false;
     if (!query) return true;
-    return (
-      item.tlsNumber.toLowerCase().includes(query) ||
-      item.itemName.toLowerCase().includes(query) ||
-      item.picName.toLowerCase().includes(query) ||
-      item.branchName.toLowerCase().includes(query)
-    );
+    return matchesGlobalQuery(query, [
+      item.tlsNumber,
+      item.itemName,
+      item.picName,
+      item.branchName,
+      item.branchCode || "",
+      item.eligibilityStatus,
+      item.eligibilityStatusLabel,
+      item.transactionStatus,
+      item.transactionStatusLabel,
+      item.note || ""
+    ]);
   });
 }
 

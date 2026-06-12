@@ -41,9 +41,11 @@ import {
   type UsedGoodsUpdateInput,
   type UsedGoodsSaleOrderInput
 } from "@/lib/validations";
-import { usedGoodsCategoryLabels, vehicleTypeByCode } from "@/data/options";
+import { sgaEligibilityStatusLabels, sgaTransactionStatusLabels, usedGoodsCategoryLabels, vehicleTypeByCode } from "@/data/options";
 import { buildSgaCsv, buildUsedGoodsCsv } from "@/lib/csv";
 import { calculateDashboardStatsFromData } from "@/lib/dashboard-stats";
+import { calculateSgaStats } from "@/lib/sga-analytics";
+import { calculateUsedGoodsStats } from "@/lib/used-goods-analytics";
 import { buildUsedGoodsSaleIndex, getUsedGoodsSaleAvailability } from "@/lib/sale-availability";
 import { clearSessionCookie, requireActionUser, setSessionCookie, toSessionUser } from "@/lib/auth";
 import {
@@ -63,7 +65,7 @@ import { normalizeTlsNumber } from "@/lib/sga";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Prisma, UsedGoodsCategory } from "@prisma/client";
+import type { Prisma, SgaEligibilityStatus, SgaTransactionStatus, UsedGoodsCategory } from "@prisma/client";
 
 const sparepartInclude = {
   branch: true
@@ -100,16 +102,6 @@ const sgaSaleOrderInclude = {
     }
   }
 } satisfies Prisma.SgaSaleOrderInclude;
-
-const emptySgaStats: SgaStats = {
-  total: 0,
-  totalQuantity: 0,
-  saleable: 0,
-  notSaleable: 0,
-  inOrder: 0,
-  sold: 0,
-  activeBranches: 0
-};
 
 function toDate(value: string | null | undefined) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
@@ -171,6 +163,9 @@ async function assertCanAccessSgaItem(user: SessionUser, id: string) {
   });
 
   if (!item) throw new Error("Data SGA tidak ditemukan.");
+  if ((user.role === "ADMIN_CABANG" || user.role === "KARYAWAN_CABANG") && item.branchId !== user.branchId) {
+    throw new Error("Anda tidak memiliki akses ke data cabang lain.");
+  }
   return item;
 }
 
@@ -265,14 +260,43 @@ function buildSgaWhere(filters: SgaFilters): Prisma.SgaItemWhereInput {
       { tlsNumber: { contains: parsed.query, mode: "insensitive" } },
       { itemName: { contains: parsed.query, mode: "insensitive" } },
       { picName: { contains: parsed.query, mode: "insensitive" } },
-      { branch: { is: { name: { contains: parsed.query, mode: "insensitive" } } } }
+      { note: { contains: parsed.query, mode: "insensitive" } },
+      { branch: { is: { name: { contains: parsed.query, mode: "insensitive" } } } },
+      { branch: { is: { code: { contains: parsed.query, mode: "insensitive" } } } },
+      ...buildSgaStatusSearchConditions(parsed.query)
     ];
   }
 
   return where;
 }
 
+function buildSgaStatusSearchConditions(query: string): Prisma.SgaItemWhereInput[] {
+  const normalizedQuery = normalizeSgaSearchText(query);
+  const eligibilityMatches = Object.entries(sgaEligibilityStatusLabels)
+    .filter(([value, label]) => matchesSgaSearchLabel(normalizedQuery, value, label))
+    .map(([value]) => ({ eligibilityStatus: value as SgaEligibilityStatus }));
+  const transactionMatches = Object.entries(sgaTransactionStatusLabels)
+    .filter(([value, label]) => matchesSgaSearchLabel(normalizedQuery, value, label))
+    .map(([value]) => ({ transactionStatus: value as SgaTransactionStatus }));
+
+  return [...eligibilityMatches, ...transactionMatches];
+}
+
+function matchesSgaSearchLabel(query: string, value: string, label: string) {
+  return normalizeSgaSearchText(value).includes(query) || normalizeSgaSearchText(label).includes(query);
+}
+
+function normalizeSgaSearchText(value: string) {
+  return value.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function assertSgaCentralAccess(user: SessionUser) {
+  if (!canCreateOrder(user)) {
+    throw new Error("Role cabang tidak dapat membuat order jual.");
+  }
+}
+
+function assertSgaAccess(user: SessionUser) {
   if (!canAccessSga(user)) {
     throw new Error("Role Anda tidak dapat mengakses SGA.");
   }
@@ -379,7 +403,7 @@ export async function listUsedGoodsSaleOrders(actor?: SessionUser) {
 export async function listSgaSaleOrders(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  if (!canAccessSga(user)) {
+  if (!canCreateOrder(user)) {
     return [];
   }
 
@@ -406,9 +430,9 @@ export async function listUsedGoods(filters?: UsedGoodsFilters, actor?: SessionU
 export async function listSgaItems(filters?: SgaFilters, actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  assertSgaCentralAccess(user);
+  assertSgaAccess(user);
   const items = await prisma.sgaItem.findMany({
-    where: buildSgaWhere(filters),
+    where: applyBranchScope(user, buildSgaWhere(filters)),
     include: sgaInclude,
     orderBy: [{ inputDate: "desc" }, { createdAt: "desc" }, { tlsNumber: "asc" }]
   });
@@ -419,7 +443,7 @@ export async function listSgaItems(filters?: SgaFilters, actor?: SessionUser) {
 export async function listSaleableSgaItems(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  assertSgaCentralAccess(user);
+  assertSgaAccess(user);
   return listSgaItems({ eligibilityStatus: "LAYAK_JUAL" }, user);
 }
 
@@ -427,99 +451,76 @@ export async function getUsedGoodsStats(actor?: SessionUser): Promise<UsedGoodsS
   noStore();
   const user = await getActor(actor);
   const where = applyBranchScope(user, {} satisfies Prisma.UsedGoodsWhereInput);
-  const [total, saleable, notSaleable, items, branches] = await Promise.all([
-    prisma.usedGoods.count({ where }),
-    prisma.usedGoods.count({ where: { ...where, condition: "LAYAK_JUAL" } }),
-    prisma.usedGoods.count({ where: { ...where, condition: "TIDAK_LAYAK" } }),
-    prisma.usedGoods.findMany({
-      where,
-      select: {
-        qty: true,
-        estimatedWeightKg: true
-      }
-    }),
-    prisma.usedGoods.findMany({
-      where,
-      distinct: ["branchId"],
-      select: { branchId: true }
-    })
-  ]);
+  const items = await prisma.usedGoods.findMany({
+    where,
+    select: {
+      branchId: true,
+      qty: true,
+      estimatedWeightKg: true,
+      condition: true
+    }
+  });
 
-  return {
-    total,
-    totalQty: items.reduce((sum, item) => sum + Number(item.qty), 0),
-    saleable,
-    notSaleable,
-    totalWeightKg: items.reduce((sum, item) => sum + Number(item.estimatedWeightKg || 0), 0),
-    activeBranches: branches.length
-  };
+  return calculateUsedGoodsStats(items);
 }
 
 export async function getSgaStats(actor?: SessionUser): Promise<SgaStats> {
   noStore();
   const user = await getActor(actor);
-  assertSgaCentralAccess(user);
-  const [total, saleable, notSaleable, inOrder, sold, items, branches] = await Promise.all([
-    prisma.sgaItem.count(),
-    prisma.sgaItem.count({ where: { eligibilityStatus: "LAYAK_JUAL" } }),
-    prisma.sgaItem.count({ where: { eligibilityStatus: "TIDAK_LAYAK" } }),
-    prisma.sgaItem.count({ where: { transactionStatus: "DALAM_ORDER" } }),
-    prisma.sgaItem.count({ where: { transactionStatus: "TERJUAL" } }),
-    prisma.sgaItem.findMany({ select: { quantity: true } }),
-    prisma.sgaItem.findMany({
-      distinct: ["branchId"],
-      select: { branchId: true }
-    })
-  ]);
+  assertSgaAccess(user);
+  const where = applyBranchScope(user, {} satisfies Prisma.SgaItemWhereInput);
+  const items = await prisma.sgaItem.findMany({
+    where,
+    select: {
+      branchId: true,
+      quantity: true,
+      eligibilityStatus: true,
+      transactionStatus: true
+    }
+  });
 
-  return {
-    total,
-    totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    saleable,
-    notSaleable,
-    inOrder,
-    sold,
-    activeBranches: branches.length
-  };
+  return calculateSgaStats(items);
 }
 
 export async function getDashboardStats(actor?: SessionUser): Promise<DashboardStats> {
   noStore();
   const user = await getActor(actor);
-  const where = applyBranchScope(user, {} satisfies Prisma.SparepartWhereInput);
-  const [total, saleable, damaged, activeBranches, plates, pjpps, usedGoods, sga] = await Promise.all([
-    prisma.sparepart.count({ where }),
-    prisma.sparepart.count({ where: { ...where, condition: "LAYAK_JUAL" } }),
-    prisma.sparepart.count({ where: { ...where, condition: "RUSAK" } }),
+  const sparepartWhere = applyBranchScope(user, {} satisfies Prisma.SparepartWhereInput);
+  const usedGoodsWhere = applyBranchScope(user, {} satisfies Prisma.UsedGoodsWhereInput);
+  const sgaWhere = applyBranchScope(user, {} satisfies Prisma.SgaItemWhereInput);
+  const [spareparts, usedGoods, sgaItems] = await Promise.all([
     prisma.sparepart.findMany({
-      where,
-      distinct: ["branchId"],
-      select: { branchId: true }
+      where: sparepartWhere,
+      select: {
+        branchId: true,
+        plateNumber: true,
+        pjpp: true,
+        condition: true
+      }
     }),
-    prisma.sparepart.findMany({
-      where,
-      distinct: ["plateNumber"],
-      select: { plateNumber: true }
+    prisma.usedGoods.findMany({
+      where: usedGoodsWhere,
+      select: {
+        branchId: true,
+        qty: true,
+        estimatedWeightKg: true,
+        condition: true
+      }
     }),
-    prisma.sparepart.findMany({
-      where,
-      distinct: ["pjpp"],
-      select: { pjpp: true }
-    }),
-    getUsedGoodsStats(user),
-    canAccessSga(user) ? getSgaStats(user) : Promise.resolve(emptySgaStats)
+    canAccessSga(user)
+      ? prisma.sgaItem.findMany({
+          where: sgaWhere,
+          select: {
+            branchId: true,
+            quantity: true,
+            eligibilityStatus: true,
+            transactionStatus: true
+          }
+        })
+      : Promise.resolve([])
   ]);
 
-  return {
-    total,
-    saleable,
-    damaged,
-    activeBranches: activeBranches.length,
-    uniquePlates: plates.length,
-    uniquePjpp: pjpps.length,
-    usedGoods,
-    sga
-  };
+  return calculateDashboardStatsFromData(spareparts, usedGoods, sgaItems);
 }
 
 export async function listUsers(actor?: SessionUser) {
@@ -569,16 +570,16 @@ export async function getReportData(actor?: SessionUser) {
 export async function getUsedGoodsReportData(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  const [items, stats] = await Promise.all([listUsedGoods(undefined, user), getUsedGoodsStats(user)]);
-  return { items, stats };
+  const items = await listUsedGoods(undefined, user);
+  return { items, stats: calculateUsedGoodsStats(items) };
 }
 
 export async function getSgaReportData(actor?: SessionUser) {
   noStore();
   const user = await getActor(actor);
-  assertSgaCentralAccess(user);
-  const [items, stats] = await Promise.all([listSgaItems(undefined, user), getSgaStats(user)]);
-  return { items, stats };
+  assertSgaAccess(user);
+  const items = await listSgaItems(undefined, user);
+  return { items, stats: calculateSgaStats(items) };
 }
 
 export async function createSparepart(data: SparepartInput) {
@@ -778,7 +779,7 @@ export async function exportUsedGoodsCsv(filters?: UsedGoodsFilters) {
 
 export async function createSgaItem(data: SgaInput) {
   const user = await getActor();
-  assertSgaCentralAccess(user);
+  assertSgaAccess(user);
   const parsed = sgaInputSchema.parse(data);
   const { branchId } = await resolveActiveBranchForWrite(user, parsed.branchId);
 
@@ -811,6 +812,9 @@ export async function createSgaItem(data: SgaInput) {
 
 export async function updateSgaItem(id: string, data: SgaUpdateInput) {
   const user = await getActor();
+  if (user.role === "KARYAWAN_CABANG") {
+    throw new Error("Role Anda tidak dapat mengedit data SGA.");
+  }
   const existing = await assertCanAccessSgaItem(user, id);
   if (existing.transactionStatus !== "TERSEDIA") {
     throw new Error("Data SGA sudah dalam order atau terjual dan tidak dapat diedit.");
@@ -847,7 +851,10 @@ export async function updateSgaItem(id: string, data: SgaUpdateInput) {
 
 export async function deleteSgaItem(id: string) {
   const user = await getActor();
-  assertSgaCentralAccess(user);
+  assertSgaAccess(user);
+  if (!canDeleteOperationalData(user)) {
+    throw new Error("Role Anda tidak dapat menghapus data SGA.");
+  }
   await assertCanAccessSgaItem(user, id);
   const existingOrder = await prisma.sgaSaleOrder.findFirst({
     where: {
@@ -870,7 +877,7 @@ export async function exportSgaCsv(filters?: SgaFilters) {
   if (!canExportData(user)) {
     throw new Error("Role Anda tidak dapat melakukan export data.");
   }
-  assertSgaCentralAccess(user);
+  assertSgaAccess(user);
   const items = await listSgaItems(filters, user);
   return buildSgaCsv(items);
 }

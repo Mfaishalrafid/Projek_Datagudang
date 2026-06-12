@@ -68,6 +68,7 @@ import {
   deleteSgaItem,
   exportSgaCsv,
   getSgaStats,
+  listSgaItems,
   listSaleableSgaItems,
   updateSgaItem
 } from "@/app/actions";
@@ -174,7 +175,7 @@ describe("SGA server actions", () => {
     await expect(createSgaItem(validPayload)).resolves.toMatchObject({ tlsNumber: "TLS-2026-010" });
   });
 
-  it("rejects role cabang from creating SGA", async () => {
+  it("allows ADMIN_CABANG to create SGA only for its own branch", async () => {
     actorRef.current = {
       id: "user-cabang",
       name: "Admin Cabang",
@@ -182,9 +183,39 @@ describe("SGA server actions", () => {
       role: "ADMIN_CABANG",
       branchId: "branch-sirclo"
     };
+    prismaMock.sgaItem.findUnique.mockResolvedValue(null);
+    prismaMock.sgaItem.create.mockResolvedValue(makeSgaRecord({ createdById: "user-cabang" }));
 
-    await expect(createSgaItem(validPayload)).rejects.toThrow("Role Anda tidak dapat mengakses SGA.");
-    expect(prismaMock.sgaItem.create).not.toHaveBeenCalled();
+    await expect(createSgaItem({ ...validPayload, branchId: "branch-cargo" })).resolves.toMatchObject({
+      branchId: "branch-sirclo",
+      tlsNumber: "TLS-2026-010"
+    });
+    expect(prismaMock.branch.findFirst).toHaveBeenCalledWith({ where: { id: "branch-sirclo", isActive: true } });
+    expect(prismaMock.sgaItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          branchId: "branch-sirclo",
+          createdById: "user-cabang"
+        })
+      })
+    );
+  });
+
+  it("allows KARYAWAN_CABANG to create SGA for its own branch but not edit", async () => {
+    actorRef.current = {
+      id: "user-karyawan",
+      name: "Karyawan Cabang",
+      email: "karyawan@barkas.local",
+      role: "KARYAWAN_CABANG",
+      branchId: "branch-sirclo"
+    };
+    prismaMock.sgaItem.findUnique.mockResolvedValue(null);
+    prismaMock.sgaItem.create.mockResolvedValue(makeSgaRecord({ createdById: "user-karyawan" }));
+
+    await expect(createSgaItem({ ...validPayload, branchId: "branch-cargo" })).resolves.toMatchObject({
+      branchId: "branch-sirclo"
+    });
+    await expect(updateSgaItem("sga-meja", { id: "sga-meja", itemName: "Nama baru" })).rejects.toThrow("tidak dapat mengedit data SGA");
   });
 
   it("rejects duplicate TLS after normalization", async () => {
@@ -206,6 +237,54 @@ describe("SGA server actions", () => {
     );
   });
 
+  it("scopes SGA list to the current branch for cabang roles", async () => {
+    actorRef.current = {
+      id: "user-cabang",
+      name: "Admin Cabang",
+      email: "cabang@barkas.local",
+      role: "ADMIN_CABANG",
+      branchId: "branch-sirclo"
+    };
+    prismaMock.sgaItem.findMany.mockResolvedValue([makeSgaRecord()]);
+
+    await listSgaItems({ branchId: "branch-cargo", query: "meja" });
+
+    expect(prismaMock.sgaItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          branchId: "branch-sirclo"
+        })
+      })
+    );
+  });
+
+  it("searches SGA by item name, TLS, PIC, branch, note, and status labels", async () => {
+    prismaMock.sgaItem.findMany.mockResolvedValue([makeSgaRecord()]);
+
+    await listSgaItems({ query: "Meja" });
+
+    const where = prismaMock.sgaItem.findMany.mock.calls[0]?.[0]?.where as any;
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        { tlsNumber: { contains: "Meja", mode: "insensitive" } },
+        { itemName: { contains: "Meja", mode: "insensitive" } },
+        { picName: { contains: "Meja", mode: "insensitive" } },
+        { note: { contains: "Meja", mode: "insensitive" } },
+        { branch: { is: { name: { contains: "Meja", mode: "insensitive" } } } },
+        { branch: { is: { code: { contains: "Meja", mode: "insensitive" } } } }
+      ])
+    );
+  });
+
+  it("adds SGA status filters when query matches status text", async () => {
+    prismaMock.sgaItem.findMany.mockResolvedValue([makeSgaRecord()]);
+
+    await listSgaItems({ query: "Dalam Order" });
+
+    const where = prismaMock.sgaItem.findMany.mock.calls[0]?.[0]?.where as any;
+    expect(where.OR).toEqual(expect.arrayContaining([{ transactionStatus: "DALAM_ORDER" }]));
+  });
+
   it("rejects selling TIDAK_LAYAK, DALAM_ORDER, or TERJUAL SGA", async () => {
     prismaMock.sgaItem.findUnique.mockResolvedValue(makeSgaRecord({ eligibilityStatus: "TIDAK_LAYAK" }));
     await expect(
@@ -221,6 +300,35 @@ describe("SGA server actions", () => {
     await expect(
       createSgaSaleOrder({ sgaItemId: "sga-meja", buyerName: "Pembeli", salePrice: 1, saleDate: "2026-05-24", buyerType: "", note: "" })
     ).rejects.toThrow("SGA sudah terjual.");
+  });
+
+  it("blocks cabang roles from creating SGA sale orders", async () => {
+    actorRef.current = {
+      id: "user-cabang",
+      name: "Admin Cabang",
+      email: "cabang@barkas.local",
+      role: "ADMIN_CABANG",
+      branchId: "branch-sirclo"
+    };
+
+    await expect(
+      createSgaSaleOrder({ sgaItemId: "sga-meja", buyerName: "Pembeli", salePrice: 1, saleDate: "2026-05-24", buyerType: "", note: "" })
+    ).rejects.toThrow("Role cabang tidak dapat membuat order jual.");
+    expect(prismaMock.sgaSaleOrder.create).not.toHaveBeenCalled();
+  });
+
+  it("blocks branch roles from updating or deleting SGA from another branch", async () => {
+    actorRef.current = {
+      id: "user-cabang",
+      name: "Admin Cabang",
+      email: "cabang@barkas.local",
+      role: "ADMIN_CABANG",
+      branchId: "branch-sirclo"
+    };
+    prismaMock.sgaItem.findUnique.mockResolvedValue(makeSgaRecord({ branchId: "branch-cargo" }));
+
+    await expect(updateSgaItem("sga-meja", { id: "sga-meja", itemName: "Nama baru" })).rejects.toThrow("akses ke data cabang lain");
+    await expect(deleteSgaItem("sga-meja")).rejects.toThrow("akses ke data cabang lain");
   });
 
   it("creates an SGA sale order and locks the item into DALAM_ORDER", async () => {
@@ -265,10 +373,11 @@ describe("SGA server actions", () => {
   });
 
   it("calculates SGA stats and exports SGA CSV", async () => {
-    prismaMock.sgaItem.count.mockResolvedValueOnce(3).mockResolvedValueOnce(2).mockResolvedValueOnce(1).mockResolvedValueOnce(1).mockResolvedValueOnce(0);
-    prismaMock.sgaItem.findMany
-      .mockResolvedValueOnce([{ quantity: 5 }, { quantity: 10 }, { quantity: 2 }])
-      .mockResolvedValueOnce([{ branchId: "branch-sirclo" }, { branchId: "branch-cargo" }]);
+    prismaMock.sgaItem.findMany.mockResolvedValueOnce([
+      { branchId: "branch-sirclo", quantity: 5, eligibilityStatus: "LAYAK_JUAL", transactionStatus: "TERSEDIA" },
+      { branchId: "branch-cargo", quantity: 10, eligibilityStatus: "LAYAK_JUAL", transactionStatus: "DALAM_ORDER" },
+      { branchId: "branch-sirclo", quantity: 2, eligibilityStatus: "TIDAK_LAYAK", transactionStatus: "TERSEDIA" }
+    ]);
 
     await expect(getSgaStats()).resolves.toEqual({
       total: 3,
@@ -279,6 +388,17 @@ describe("SGA server actions", () => {
       sold: 0,
       activeBranches: 2
     });
+    expect(prismaMock.sgaItem.count).not.toHaveBeenCalled();
+    expect(prismaMock.sgaItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: {
+          branchId: true,
+          quantity: true,
+          eligibilityStatus: true,
+          transactionStatus: true
+        }
+      })
+    );
 
     prismaMock.sgaItem.findMany.mockResolvedValue([makeSgaRecord()]);
     const csv = await exportSgaCsv();

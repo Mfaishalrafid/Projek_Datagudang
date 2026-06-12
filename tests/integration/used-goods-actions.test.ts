@@ -196,14 +196,11 @@ describe("used goods server actions", () => {
   });
 
   it("calculates used goods stats", async () => {
-    prismaMock.usedGoods.count.mockResolvedValueOnce(3).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
-    prismaMock.usedGoods.findMany
-      .mockResolvedValueOnce([
-        { qty: 270, estimatedWeightKg: null },
-        { qty: 5, estimatedWeightKg: 5 },
-        { qty: 2, estimatedWeightKg: 1 }
-      ])
-      .mockResolvedValueOnce([{ branchId: "branch-sirclo" }, { branchId: "branch-cargo" }]);
+    prismaMock.usedGoods.findMany.mockResolvedValueOnce([
+      { branchId: "branch-sirclo", qty: 270, estimatedWeightKg: null, condition: "LAYAK_JUAL" },
+      { branchId: "branch-cargo", qty: 5, estimatedWeightKg: 5, condition: "LAYAK_JUAL" },
+      { branchId: "branch-sirclo", qty: 2, estimatedWeightKg: 1, condition: "TIDAK_LAYAK" }
+    ]);
 
     await expect(getUsedGoodsStats()).resolves.toEqual({
       total: 3,
@@ -213,6 +210,17 @@ describe("used goods server actions", () => {
       totalWeightKg: 6,
       activeBranches: 2
     });
+    expect(prismaMock.usedGoods.count).not.toHaveBeenCalled();
+    expect(prismaMock.usedGoods.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: {
+          branchId: true,
+          qty: true,
+          estimatedWeightKg: true,
+          condition: true
+        }
+      })
+    );
   });
 
   it("exports used goods CSV with the required header", async () => {

@@ -1,5 +1,5 @@
 import { buildSgaCsv, csvDownloadResponse } from "@/lib/csv";
-import { canAccessSga, canExportData } from "@/lib/access-control";
+import { applyBranchScope, canAccessSga, canExportData } from "@/lib/access-control";
 import { getSessionUser } from "@/lib/auth";
 import { toSgaItemDTO } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +12,7 @@ export async function GET() {
   if (!canExportData(user) || !canAccessSga(user)) return new Response("Forbidden", { status: 403 });
 
   const items = await prisma.sgaItem.findMany({
+    where: applyBranchScope(user, {}),
     include: {
       branch: true
     },

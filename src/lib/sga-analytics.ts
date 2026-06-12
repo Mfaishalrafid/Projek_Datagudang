@@ -3,19 +3,33 @@ import type { SgaStats } from "@/lib/types";
 
 type SgaStatsItem = {
   branchId: string;
-  quantity: number | string | null;
+  quantity: number | string | { toString(): string } | null;
   eligibilityStatus: SgaEligibilityStatus;
   transactionStatus: SgaTransactionStatus;
 };
 
 export function calculateSgaStats(items: SgaStatsItem[]): SgaStats {
-  return {
-    total: items.length,
-    totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-    saleable: items.filter((item) => item.eligibilityStatus === "LAYAK_JUAL").length,
-    notSaleable: items.filter((item) => item.eligibilityStatus === "TIDAK_LAYAK").length,
-    inOrder: items.filter((item) => item.transactionStatus === "DALAM_ORDER").length,
-    sold: items.filter((item) => item.transactionStatus === "TERJUAL").length,
-    activeBranches: new Set(items.map((item) => item.branchId)).size
+  const stats: SgaStats = {
+    total: 0,
+    totalQuantity: 0,
+    saleable: 0,
+    notSaleable: 0,
+    inOrder: 0,
+    sold: 0,
+    activeBranches: 0
   };
+  const branches = new Set<string>();
+
+  for (const item of items) {
+    stats.total += 1;
+    stats.totalQuantity += Number(item.quantity || 0);
+    stats.saleable += item.eligibilityStatus === "LAYAK_JUAL" ? 1 : 0;
+    stats.notSaleable += item.eligibilityStatus === "TIDAK_LAYAK" ? 1 : 0;
+    stats.inOrder += item.transactionStatus === "DALAM_ORDER" ? 1 : 0;
+    stats.sold += item.transactionStatus === "TERJUAL" ? 1 : 0;
+    branches.add(item.branchId);
+  }
+
+  stats.activeBranches = branches.size;
+  return stats;
 }
